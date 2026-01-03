@@ -11,7 +11,7 @@ import SwiftUI
 struct MorphedApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            EditorView()
         }
     }
 }
