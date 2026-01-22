@@ -6,16 +6,19 @@ import Foundation
 /// so views / view models don't need to know about tiers directly.
 @MainActor
 enum FeatureGates {
-    static func canUseMaxMode(_ manager: SubscriptionManager = .shared) -> Bool {
-        !manager.shouldGateMaxMode()
+    static func canUseMaxMode(_ manager: SubscriptionManager? = nil) -> Bool {
+        let manager = manager ?? SubscriptionManager.shared
+        return !manager.shouldGateMaxMode()
     }
     
-    static func canExportHD(_ manager: SubscriptionManager = .shared) -> Bool {
-        !manager.shouldGateHDExport()
+    static func canExportHD(_ manager: SubscriptionManager? = nil) -> Bool {
+        let manager = manager ?? SubscriptionManager.shared
+        return !manager.shouldGateHDExport()
     }
     
-    static func shouldApplyWatermark(_ manager: SubscriptionManager = .shared) -> Bool {
-        manager.shouldApplyWatermark()
+    static func shouldApplyWatermark(_ manager: SubscriptionManager? = nil) -> Bool {
+        let manager = manager ?? SubscriptionManager.shared
+        return manager.shouldApplyWatermark()
     }
 }
 
