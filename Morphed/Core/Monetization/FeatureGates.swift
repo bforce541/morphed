@@ -4,6 +4,7 @@ import Foundation
 
 /// Lightweight helper functions around SubscriptionManager
 /// so views / view models don't need to know about tiers directly.
+@MainActor
 enum FeatureGates {
     static func canUseMaxMode(_ manager: SubscriptionManager = .shared) -> Bool {
         !manager.shouldGateMaxMode()
@@ -17,5 +18,4 @@ enum FeatureGates {
         manager.shouldApplyWatermark()
     }
 }
-
 

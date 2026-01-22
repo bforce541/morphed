@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		09FBBC972F219F1800C9ED19 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBC962F219F1800C9ED19 /* Auth */; };
+		09FBBC992F219F1E00C9ED19 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBC982F219F1E00C9ED19 /* Functions */; };
+		09FBBC9B2F219F1E00C9ED19 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBC9A2F219F1E00C9ED19 /* PostgREST */; };
+		09FBBC9D2F219F1E00C9ED19 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBC9C2F219F1E00C9ED19 /* Realtime */; };
+		09FBBC9F2F219F1E00C9ED19 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBC9E2F219F1E00C9ED19 /* Storage */; };
+		09FBBCA12F219F1E00C9ED19 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 09FBBCA02F219F1E00C9ED19 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		534D6D462F0992A90079135C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,11 +36,25 @@
 		534D6D382F0992A80079135C /* Morphed.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Morphed.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		534D6D452F0992A90079135C /* MorphedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MorphedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		534D6D4F2F0992A90079135C /* MorphedUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MorphedUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		534D6D6A2F0992A90079135C /* Morphed/Config/App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Morphed/Config/App.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		09FBBD022F21A91A00C9ED19 /* Exceptions for "Morphed" folder in "Morphed" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 534D6D372F0992A80079135C /* Morphed */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		534D6D3A2F0992A80079135C /* Morphed */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				09FBBD022F21A91A00C9ED19 /* Exceptions for "Morphed" folder in "Morphed" target */,
+			);
 			path = Morphed;
 			sourceTree = "<group>";
 		};
@@ -52,6 +75,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				09FBBC9B2F219F1E00C9ED19 /* PostgREST in Frameworks */,
+				09FBBC992F219F1E00C9ED19 /* Functions in Frameworks */,
+				09FBBCA12F219F1E00C9ED19 /* Supabase in Frameworks */,
+				09FBBC972F219F1800C9ED19 /* Auth in Frameworks */,
+				09FBBC9F2F219F1E00C9ED19 /* Storage in Frameworks */,
+				09FBBC9D2F219F1E00C9ED19 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,6 +101,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		09FBBC342F217AC400C9ED19 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				534D6D6A2F0992A90079135C /* Morphed/Config/App.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		09FBBC952F219F1800C9ED19 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		534D6D2F2F0992A80079135C = {
 			isa = PBXGroup;
 			children = (
@@ -79,6 +123,8 @@
 				534D6D482F0992A90079135C /* MorphedTests */,
 				534D6D522F0992A90079135C /* MorphedUITests */,
 				534D6D392F0992A80079135C /* Products */,
+				09FBBC342F217AC400C9ED19 /* Recovered References */,
+				09FBBC952F219F1800C9ED19 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -112,6 +158,12 @@
 			);
 			name = Morphed;
 			packageProductDependencies = (
+				09FBBC962F219F1800C9ED19 /* Auth */,
+				09FBBC982F219F1E00C9ED19 /* Functions */,
+				09FBBC9A2F219F1E00C9ED19 /* PostgREST */,
+				09FBBC9C2F219F1E00C9ED19 /* Realtime */,
+				09FBBC9E2F219F1E00C9ED19 /* Storage */,
+				09FBBCA02F219F1E00C9ED19 /* Supabase */,
 			);
 			productName = Morphed;
 			productReference = 534D6D382F0992A80079135C /* Morphed.app */;
@@ -195,6 +247,9 @@
 			);
 			mainGroup = 534D6D2F2F0992A80079135C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 534D6D392F0992A80079135C /* Products */;
 			projectDirPath = "";
@@ -390,6 +445,7 @@
 		};
 		534D6D5A2F0992A90079135C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 534D6D6A2F0992A90079135C /* Morphed/Config/App.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -397,6 +453,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Morphed/Info.plist;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Morphed needs access to save edited photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Morphed needs access to your photo library to select photos for editing.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -423,6 +480,7 @@
 		};
 		534D6D5B2F0992A90079135C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 534D6D6A2F0992A90079135C /* Morphed/Config/App.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -430,6 +488,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Morphed/Info.plist;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Morphed needs access to save edited photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Morphed needs access to your photo library to select photos for editing.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -574,6 +633,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		09FBBC962F219F1800C9ED19 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		09FBBC982F219F1E00C9ED19 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		09FBBC9A2F219F1E00C9ED19 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		09FBBC9C2F219F1E00C9ED19 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		09FBBC9E2F219F1E00C9ED19 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		09FBBCA02F219F1E00C9ED19 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FBBC942F219CBF00C9ED19 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 534D6D302F0992A80079135C /* Project object */;
 }

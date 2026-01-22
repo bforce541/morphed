@@ -1,20 +1,23 @@
 // morphed-ios/Morphed/Features/Auth/SignUpView.swift
 
 import SwiftUI
+import Supabase
 
 struct SignUpView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var authManager = AuthManager.shared
     @State private var name = ""
-    @State private var email = ""
+    @State private var identifier = ""
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showInfo = false
+    @State private var infoMessage = ""
     @FocusState private var focusedField: Field?
     
     enum Field {
-        case name, email, password, confirmPassword
+        case name, identifier, password, confirmPassword
     }
     
     var body: some View {
@@ -61,13 +64,13 @@ struct SignUpView: View {
                                     .focused($focusedField, equals: .name)
                             }
                             
-                            // Email Field
+                            // Email or Phone Field
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Email")
+                                Text("Email or Phone")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.offWhite)
                                 
-                                TextField("", text: $email, prompt: Text("Enter your email").foregroundColor(.offWhite.opacity(0.5)))
+                                TextField("", text: $identifier, prompt: Text("Enter your email or phone").foregroundColor(.offWhite.opacity(0.5)))
                                     .textFieldStyle(.plain)
                                     .foregroundColor(.offWhite)
                                     .autocapitalization(.none)
@@ -78,9 +81,9 @@ struct SignUpView: View {
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusedField == .email ? Color.cyberCyan : Color.clear, lineWidth: 2)
+                                            .stroke(focusedField == .identifier ? Color.cyberCyan : Color.clear, lineWidth: 2)
                                     )
-                                    .focused($focusedField, equals: .email)
+                                    .focused($focusedField, equals: .identifier)
                             }
                             
                             // Password Field
@@ -150,6 +153,67 @@ struct SignUpView: View {
                             }
                             .disabled(!isValid || authManager.isLoading)
                             .padding(.top, 8)
+                            
+                            // Divider
+                            HStack(spacing: 12) {
+                                Rectangle()
+                                    .fill(Color.offWhite.opacity(0.2))
+                                    .frame(height: 1)
+                                Text("OR")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.offWhite.opacity(0.5))
+                                Rectangle()
+                                    .fill(Color.offWhite.opacity(0.2))
+                                    .frame(height: 1)
+                            }
+                            .padding(.vertical, 8)
+                            
+                            // OAuth
+                            VStack(spacing: 12) {
+                                Button(action: {
+                                    Task {
+                                        await handleOAuth(.google)
+                                    }
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "globe")
+                                        Text("Continue with Google")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .foregroundColor(.offWhite)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(Color.deepSlate)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.offWhite.opacity(0.15), lineWidth: 1)
+                                    )
+                                    .cornerRadius(12)
+                                }
+                                .disabled(authManager.isLoading)
+                                
+                                Button(action: {
+                                    Task {
+                                        await handleOAuth(.apple)
+                                    }
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "applelogo")
+                                        Text("Continue with Apple")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .foregroundColor(.offWhite)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(Color.deepSlate)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.offWhite.opacity(0.15), lineWidth: 1)
+                                    )
+                                    .cornerRadius(12)
+                                }
+                                .disabled(authManager.isLoading)
+                            }
                         }
                         .padding(.horizontal, 24)
                     }
@@ -172,12 +236,18 @@ struct SignUpView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Notice", isPresented: $showInfo) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            Text(infoMessage)
+        }
     }
     
     private var isValid: Bool {
         !name.isEmpty &&
-        !email.isEmpty &&
-        email.contains("@") &&
+        !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !password.isEmpty &&
         password.count >= 6 &&
         password == confirmPassword
@@ -191,7 +261,24 @@ struct SignUpView: View {
         }
         
         do {
-            try await authManager.signUp(email: email, password: password, name: name)
+            let needsConfirmation = try await authManager.signUp(identifier: identifier, password: password, name: name)
+            Haptics.notification(type: .success)
+            if needsConfirmation {
+                infoMessage = "Check your email to confirm your account, then log in."
+                showInfo = true
+            } else {
+                dismiss()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+            Haptics.notification(type: .error)
+        }
+    }
+    
+    private func handleOAuth(_ provider: Provider) async {
+        do {
+            try await authManager.signInWithOAuth(provider: provider)
             Haptics.notification(type: .success)
             dismiss()
         } catch {
@@ -201,4 +288,3 @@ struct SignUpView: View {
         }
     }
 }
-
