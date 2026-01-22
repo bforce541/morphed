@@ -9,8 +9,6 @@ enum SubscriptionTier: String, Codable {
     case free
     case weekly
     case monthlyPro
-    case oneTimePack
-    case earlyAccess
 }
 
 struct SubscriptionState: Codable {
@@ -101,15 +99,6 @@ final class SubscriptionManager: ObservableObject {
                 hasUnlimitedRenders: true,
                 remainingPremiumRenders: .max
             )
-        case .oneTimePack, .earlyAccess:
-            return Entitlements(
-                canUseMaxMode: state.remainingPremiumRenders > 0,
-                canUseCleanMode: true,
-                canRemoveWatermark: state.remainingPremiumRenders > 0,
-                canExportHD: state.remainingPremiumRenders > 0,
-                hasUnlimitedRenders: false,
-                remainingPremiumRenders: state.remainingPremiumRenders
-            )
         }
     }
     
@@ -178,21 +167,6 @@ final class SubscriptionManager: ObservableObject {
         persist()
     }
     
-    func purchaseOneTimePackMock() {
-        state.tier = .oneTimePack
-        // 5 premium renders
-        state.remainingPremiumRenders += 5
-        state.hasCompletedMockPurchase = true
-        persist()
-    }
-    
-    func purchaseEarlyAccessMock() {
-        state.tier = .earlyAccess
-        // 10 premium renders
-        state.remainingPremiumRenders += 10
-        state.hasCompletedMockPurchase = true
-        persist()
-    }
     
     func resetToFree() {
         state = SubscriptionState(

@@ -7,293 +7,249 @@ struct PaywallView: View {
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     
     @State private var selectedPlan: PricingPlanID = .weekly
+    @State private var isProcessing = false
     
     var body: some View {
         NavigationView {
             ZStack {
-                Color.midnightNavy
+                Color.backgroundGradient
                     .ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: DesignSystem.Spacing.xl) {
+                        // Header
                         header
-                        urgencyBanner
-                        pricingGrid
+                        
+                        // Pricing Cards (Weekly first, then Pro, then Free)
+                        pricingCards
+                        
+                        // CTA Button
                         footerCTA
                     }
-                    .padding(.bottom, 32)
+                    .padding(.vertical, DesignSystem.Spacing.lg)
                 }
             }
-            .navigationTitle("Premium")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Close") {
+                        Haptics.impact(style: .light)
                         dismiss()
                     }
-                    .foregroundColor(.offWhite)
+                    .foregroundColor(.textPrimary)
                 }
             }
         }
     }
     
     private var header: some View {
-        VStack(spacing: 16) {
-            if UIImage(named: "AppLogo") != nil {
-                Image("AppLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 100, height: 100)
-                    .cornerRadius(20)
-                    .shadow(color: .cyberCyan.opacity(0.5), radius: 20)
-            } else {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 50, weight: .light))
-                    .foregroundColor(.cyberCyan)
-                    .frame(width: 100, height: 100)
-            }
-            
-            Text("Level Up Your Photos")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(.offWhite)
-            
-            Text("Built for dating profiles, socials, and personal brand glow-ups.")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.offWhite.opacity(0.7))
+        VStack(spacing: DesignSystem.Spacing.md) {
+            Text("Unlock your upgraded photo")
+                .font(.system(.largeTitle, design: .default, weight: .semibold))
+                .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            
+            Text("HD results · No watermark · MAX mode")
+                .font(.system(.subheadline, design: .default))
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(.top, 32)
+        .padding(.horizontal, DesignSystem.Spacing.xl)
+        .padding(.top, DesignSystem.Spacing.lg)
     }
     
-    private var urgencyBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "flame.fill")
-                .foregroundColor(.cyberCyan)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Launch pricing live")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.offWhite)
-                Text("Limited-time founder discount before public release.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.offWhite.opacity(0.6))
-            }
-            
-            Spacer()
-            
-            Text("−40%")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.midnightNavy)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.cyberCyan)
-                .cornerRadius(999)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.deepSlate)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.cyberCyan.opacity(0.4), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-    }
-    
-    private var pricingGrid: some View {
-        VStack(spacing: 16) {
-            ForEach(PricingModels.all, id: \.id.rawValue) { plan in
+    private var pricingCards: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            // Weekly Boost - Dominant
+            if let weekly = PricingModels.all.first(where: { $0.id == .weekly }) {
                 PricingCard(
-                    plan: plan,
-                    isSelected: selectedPlan == plan.id
+                    plan: weekly,
+                    isSelected: selectedPlan == .weekly,
+                    isDominant: true
                 )
                 .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        selectedPlan = plan.id
+                    withAnimation(DesignSystem.Animation.standard) {
+                        selectedPlan = .weekly
                     }
+                    Haptics.impact(style: .light)
+                }
+            }
+            
+            // Pro Creator - Neutral
+            if let pro = PricingModels.all.first(where: { $0.id == .monthlyPro }) {
+                PricingCard(
+                    plan: pro,
+                    isSelected: selectedPlan == .monthlyPro,
+                    isDominant: false
+                )
+                .onTapGesture {
+                    withAnimation(DesignSystem.Animation.standard) {
+                        selectedPlan = .monthlyPro
+                    }
+                    Haptics.impact(style: .light)
+                }
+            }
+            
+            // Free - Muted, Last
+            if let free = PricingModels.all.first(where: { $0.id == .free }) {
+                PricingCard(
+                    plan: free,
+                    isSelected: selectedPlan == .free,
+                    isDominant: false
+                )
+                .onTapGesture {
+                    withAnimation(DesignSystem.Animation.standard) {
+                        selectedPlan = .free
+                    }
+                    Haptics.impact(style: .light)
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
+        .padding(.horizontal, DesignSystem.Spacing.md)
     }
     
     private var footerCTA: some View {
-        VStack(spacing: 12) {
-            Button(action: handlePrimaryPurchase) {
-                HStack {
-                    Text(primaryButtonTitle(for: selectedPlan))
-                        .font(.system(size: 18, weight: .semibold))
-                    Spacer()
-                    Image(systemName: "lock.open.fill")
-                }
-                .foregroundColor(.midnightNavy)
-                .padding(.horizontal, 20)
-                .frame(height: 56)
-                .frame(maxWidth: .infinity)
-                .background(
-                    LinearGradient(
-                        colors: [Color.electricBlue, Color.cyberCyan],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .cornerRadius(18)
-                .shadow(color: .cyberCyan.opacity(0.6), radius: 16, y: 4)
+        VStack(spacing: DesignSystem.Spacing.sm) {
+            MorphedButton(
+                isProcessing ? "Processing..." : primaryButtonTitle(for: selectedPlan),
+                icon: isProcessing || selectedPlan == .free ? nil : "lock.open.fill",
+                style: .primary
+            ) {
+                handlePrimaryPurchase()
             }
-            .padding(.horizontal, 20)
+            .disabled(isProcessing)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            
+            if let plan = PricingModels.all.first(where: { $0.id == selectedPlan }),
+               let cancelText = plan.cancelText {
+                Text(cancelText)
+                    .font(.system(.caption, design: .default))
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DesignSystem.Spacing.xl)
+            }
             
             Text("No real payments yet – this is a mocked purchase for development.")
-                .font(.system(size: 11))
-                .foregroundColor(.offWhite.opacity(0.5))
+                .font(.system(.caption, design: .default))
+                .foregroundColor(.textSecondary.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, DesignSystem.Spacing.xl)
         }
-        .padding(.top, 8)
+        .padding(.top, DesignSystem.Spacing.md)
     }
     
     private func primaryButtonTitle(for planID: PricingPlanID) -> String {
         switch planID {
         case .free:
-            return "Continue with Free Preview"
+            return "Continue with Preview"
         case .weekly:
             return "Unlock Weekly Boost"
         case .monthlyPro:
             return "Upgrade to Pro Creator"
-        case .oneTimePack:
-            return "Buy 5 Premium Renders"
-        case .earlyAccess:
-            return "Join Early Access"
         }
     }
     
     private func handlePrimaryPurchase() {
-        switch selectedPlan {
-        case .free:
-            AnalyticsTracker.track("paywall_continue_free", properties: nil)
-            Haptics.selection()
-            dismiss()
-        case .weekly:
-            subscriptionManager.purchaseWeeklyMock()
-            AnalyticsTracker.track("purchase_weekly_mock", properties: nil)
-        case .monthlyPro:
-            subscriptionManager.purchaseMonthlyProMock()
-            AnalyticsTracker.track("purchase_monthly_mock", properties: nil)
-        case .oneTimePack:
-            subscriptionManager.purchaseOneTimePackMock()
-            AnalyticsTracker.track("purchase_one_time_pack_mock", properties: nil)
-        case .earlyAccess:
-            subscriptionManager.purchaseEarlyAccessMock()
-            AnalyticsTracker.track("purchase_early_access_mock", properties: nil)
-        }
+        guard !isProcessing else { return }
         
-        Haptics.notification(type: .success)
-        dismiss()
-    }
-}
-
-struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(.cyberCyan)
-                .frame(width: 44, height: 44)
-                .background(Color.deepSlate)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.cyberCyan.opacity(0.3), lineWidth: 1)
-                )
+        Haptics.impact(style: .medium)
+        isProcessing = true
+        
+        Task {
+            // Simulate purchase processing
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.offWhite)
-                
-                Text(description)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.offWhite.opacity(0.6))
+            switch selectedPlan {
+            case .free:
+                AnalyticsTracker.track("paywall_continue_free", properties: nil)
+                isProcessing = false
+                dismiss()
+            case .weekly:
+                subscriptionManager.purchaseWeeklyMock()
+                AnalyticsTracker.track("purchase_weekly_mock", properties: nil)
+                Haptics.notification(type: .success)
+                isProcessing = false
+                dismiss()
+            case .monthlyPro:
+                subscriptionManager.purchaseMonthlyProMock()
+                AnalyticsTracker.track("purchase_monthly_mock", properties: nil)
+                Haptics.notification(type: .success)
+                isProcessing = false
+                dismiss()
             }
-            
-            Spacer()
         }
-        .padding(16)
-        .background(Color.deepSlate)
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.cyberCyan.opacity(0.1), lineWidth: 1)
-        )
     }
 }
 
 struct PricingCard: View {
     let plan: PricingPlan
     let isSelected: Bool
+    let isDominant: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(plan.title)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.offWhite)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            // Header with badge
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Text(plan.title)
+                            .font(.system(.headline, design: .default, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+                        
+                        if let badge = plan.badgeText, isDominant {
+                            Text(badge)
+                                .font(.system(size: 10, weight: .bold, design: .default))
+                                .foregroundColor(.midnightNavy)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.primaryAccent)
+                                .cornerRadius(6)
+                        }
+                    }
+                    
                     Text(plan.subtitle)
-                        .font(.system(size: 13))
-                        .foregroundColor(.offWhite.opacity(0.6))
+                        .font(.system(.subheadline, design: .default))
+                        .foregroundColor(.textSecondary)
                 }
                 
                 Spacer()
                 
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(plan.priceText)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.cyberCyan)
-                    if let badge = plan.badgeText {
-                        Text(badge.uppercased())
-                            .font(.system(size: 10, weight: .heavy))
-                            .foregroundColor(.midnightNavy)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.cyberCyan)
-                            .cornerRadius(999)
+                Text(plan.priceText)
+                    .font(.system(.headline, design: .default, weight: .bold))
+                    .foregroundColor(.primaryAccent)
+            }
+            
+            // Bullet points
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                ForEach(plan.bulletPoints, id: \.self) { bullet in
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primaryAccent)
+                        Text(bullet)
+                            .font(.system(.caption, design: .default))
+                            .foregroundColor(.textSecondary)
+                        Spacer()
                     }
                 }
             }
-            
-            ForEach(plan.bulletPoints, id: \.self) { bullet in
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.cyberCyan.opacity(0.9))
-                    Text(bullet)
-                        .font(.system(size: 12))
-                        .foregroundColor(.offWhite.opacity(0.7))
-                    Spacer()
-                }
-            }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(plan.isHighlighted ? Color.deepSlate.opacity(0.9) : Color.deepSlate)
-        )
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.cardBackground)
+        .cornerRadius(DesignSystem.CornerRadius.md)
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
                 .stroke(
-                    isSelected ? Color.cyberCyan : Color.cyberCyan.opacity(plan.isHighlighted ? 0.4 : 0.15),
+                    isSelected ? Color.primaryAccent : (isDominant ? Color.primaryAccent.opacity(0.5) : Color.divider.opacity(0.3)),
                     lineWidth: isSelected ? 2 : 1
                 )
         )
-        .shadow(color: isSelected ? .cyberCyan.opacity(0.4) : .clear, radius: 12, y: 4)
+        .shadow(
+            color: isSelected && isDominant ? .primaryAccent.opacity(0.3) : .clear,
+            radius: isSelected && isDominant ? 16 : 0,
+            y: isSelected && isDominant ? 4 : 0
+        )
+        .scaleEffect(isSelected && isDominant ? 1.02 : 1.0)
     }
 }
-
-

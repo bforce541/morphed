@@ -5,41 +5,55 @@ import Combine
 
 struct HistoryView: View {
     @StateObject private var viewModel = HistoryViewModel()
+    @StateObject private var router = AppRouter.shared
     @State private var selectedImage: HistoryItem?
     
     var body: some View {
         NavigationView {
             ZStack {
-                Color.midnightNavy.ignoresSafeArea()
+                // Background gradient
+                Color.backgroundGradient
+                    .ignoresSafeArea()
                 
                 if viewModel.items.isEmpty {
-                    EmptyHistoryView()
+                    EmptyHistoryView(onGenerateFirst: {
+                        router.navigateToEditor()
+                    })
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 12),
-                            GridItem(.flexible(), spacing: 12)
-                        ], spacing: 12) {
+                            GridItem(.flexible(), spacing: DesignSystem.Spacing.sm),
+                            GridItem(.flexible(), spacing: DesignSystem.Spacing.sm)
+                        ], spacing: DesignSystem.Spacing.sm) {
                             ForEach(viewModel.items) { item in
                                 HistoryItemCard(item: item) {
+                                    Haptics.impact(style: .light)
                                     selectedImage = item
                                 }
                             }
                         }
-                        .padding(16)
+                        .padding(DesignSystem.Spacing.md)
                     }
                 }
             }
-            .navigationTitle("History")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("History")
+                        .font(.system(.largeTitle, design: .default, weight: .semibold))
+                        .foregroundColor(.titleColor)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !viewModel.items.isEmpty {
                         Button(action: {
+                            Haptics.impact(style: .medium)
                             viewModel.clearHistory()
                         }) {
                             Text("Clear")
-                                .foregroundColor(.cyberCyan)
+                                .font(.system(.body, design: .default, weight: .medium))
+                                .foregroundColor(.primaryAccent)
                         }
                     }
                 }
@@ -52,22 +66,56 @@ struct HistoryView: View {
 }
 
 struct EmptyHistoryView: View {
+    let onGenerateFirst: () -> Void
+    
     var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 64, weight: .light))
-                .foregroundColor(.cyberCyan.opacity(0.3))
+        VStack(spacing: DesignSystem.Spacing.lg) {
+            Spacer()
             
-            Text("No History Yet")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(.offWhite)
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color.cardBackground)
+                    .frame(width: 120, height: 120)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.primaryAccent.opacity(0.3), lineWidth: 2)
+                    )
+                
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 56, weight: .medium))
+                    .foregroundColor(.primaryAccent)
+            }
             
-            Text("Your morphed images will appear here")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(.offWhite.opacity(0.6))
+            // Headline
+            Text("Your transformations will appear here")
+                .font(.system(.largeTitle, design: .default, weight: .semibold))
+                .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+            
+            // Subtext
+            Text("Every upgrade you generate is saved automatically.")
+                .font(.system(.subheadline, design: .default))
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+            
+            // CTA Button
+            MorphedButton(
+                "Generate your first upgrade",
+                icon: "sparkles",
+                style: .primary
+            ) {
+                Haptics.impact(style: .medium)
+                onGenerateFirst()
+            }
+            .padding(.horizontal, DesignSystem.Spacing.xl)
+            .padding(.top, DesignSystem.Spacing.md)
+            
+            Spacer()
         }
-        .padding(40)
+        .padding(DesignSystem.Spacing.xl)
     }
 }
 
@@ -85,8 +133,8 @@ struct HistoryItemCard: View {
                         .frame(height: 200)
                         .clipped()
                 } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.deepSlate)
+                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                        .fill(Color.cardBackground)
                         .frame(height: 200)
                 }
                 
@@ -94,25 +142,19 @@ struct HistoryItemCard: View {
                     Spacer()
                     HStack {
                         Text(item.mode.displayName)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold, design: .default))
                             .foregroundColor(.midnightNavy)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(
-                                LinearGradient(
-                                    colors: item.mode == .max ? [Color.cyberCyan, Color.electricBlue] : [Color.electricBlue, Color.cyberCyan],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .background(Color.primaryAccent)
                             .cornerRadius(8)
                         
                         Spacer()
                     }
-                    .padding(8)
+                    .padding(DesignSystem.Spacing.sm)
                 }
             }
-            .cornerRadius(12)
+            .cornerRadius(DesignSystem.CornerRadius.sm)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -184,17 +226,18 @@ struct ImageDetailView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.midnightNavy.ignoresSafeArea()
+                Color.backgroundGradient
+                    .ignoresSafeArea()
                 
-                VStack(spacing: 20) {
+                VStack(spacing: DesignSystem.Spacing.lg) {
                     // Image Toggle
                     Picker("View", selection: $showingOriginal) {
                         Text("Original").tag(true)
                         Text("Morphed").tag(false)
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.top)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    .padding(.top, DesignSystem.Spacing.md)
                     
                     // Image Display
                     if let image = showingOriginal ? item.originalImage : item.editedImage {
@@ -202,61 +245,35 @@ struct ImageDetailView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(maxHeight: 500)
-                            .padding()
+                            .padding(DesignSystem.Spacing.md)
                     }
                     
                     Spacer()
                     
                     // Action Buttons
-                    HStack(spacing: 16) {
-                        Button(action: {
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        MorphedButton(
+                            "Save",
+                            icon: "square.and.arrow.down",
+                            style: .primary
+                        ) {
                             if let image = item.editedImage {
                                 Task {
                                     try? await PhotoSaver.saveImage(image)
                                 }
                             }
-                        }) {
-                            HStack {
-                                Image(systemName: "square.and.arrow.down")
-                                Text("Save")
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.midnightNavy)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.cyberCyan, Color.electricBlue],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(12)
                         }
                         
-                        Button(action: {
+                        MorphedButton(
+                            "Share",
+                            icon: "square.and.arrow.up",
+                            style: .secondary
+                        ) {
                             showShareSheet = true
-                        }) {
-                            HStack {
-                                Image(systemName: "square.and.arrow.up")
-                                Text("Share")
-                            }
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.midnightNavy)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.electricBlue, Color.cyberCyan],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(12)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    .padding(.bottom, DesignSystem.Spacing.md)
                 }
             }
             .navigationTitle("Image Detail")
@@ -266,7 +283,7 @@ struct ImageDetailView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .foregroundColor(.offWhite)
+                    .foregroundColor(.textPrimary)
                 }
             }
             .sheet(isPresented: $showShareSheet) {
@@ -277,15 +294,3 @@ struct ImageDetailView: View {
         }
     }
 }
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-

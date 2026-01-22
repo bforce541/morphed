@@ -6,8 +6,6 @@ enum PricingPlanID: String {
     case free
     case weekly
     case monthlyPro
-    case oneTimePack
-    case earlyAccess
 }
 
 struct PricingPlan {
@@ -18,89 +16,64 @@ struct PricingPlan {
     let badgeText: String?
     let isHighlighted: Bool
     let bulletPoints: [String]
+    let isMostPopular: Bool
+    let cancelText: String?
 }
 
 enum PricingModels {
     static let free = PricingPlan(
         id: .free,
         title: "Free",
-        subtitle: "Try Morphed with a preview render",
+        subtitle: "Preview only",
         priceText: "$0",
-        badgeText: "Start here",
+        badgeText: nil,
         isHighlighted: false,
         bulletPoints: [
-            "1 low-res preview render",
+            "Low-res preview render",
             "CLEAN mode only",
-            "Morphed watermark",
+            "Watermark",
             "Standard queue"
-        ]
+        ],
+        isMostPopular: false,
+        cancelText: nil
     )
     
     static let weekly = PricingPlan(
         id: .weekly,
         title: "Weekly Boost",
-        subtitle: "Best for dating app glow-ups",
+        subtitle: "Unlimited HD morphs",
         priceText: "$9.99 / week",
-        badgeText: "Most Popular",
+        badgeText: "MOST POPULAR",
         isHighlighted: true,
         bulletPoints: [
             "Unlimited HD morphs",
             "MAX + CLEAN modes",
             "No watermark",
             "Priority queue"
-        ]
+        ],
+        isMostPopular: true,
+        cancelText: "Cancel anytime · No questions asked"
     )
     
     static let monthlyPro = PricingPlan(
         id: .monthlyPro,
         title: "Pro Creator",
-        subtitle: "For personal brand & content",
+        subtitle: "For creators & power users",
         priceText: "$29 / month",
-        badgeText: "Power Users",
+        badgeText: nil,
         isHighlighted: false,
         bulletPoints: [
-            "All Weekly features",
-            "Dating pack presets",
-            "Social pack presets",
-            "Branding pack presets"
-        ]
-    )
-    
-    static let oneTimePack = PricingPlan(
-        id: .oneTimePack,
-        title: "5 Renders Pack",
-        subtitle: "No subscription",
-        priceText: "$19 one-time",
-        badgeText: "No Commitment",
-        isHighlighted: false,
-        bulletPoints: [
-            "5 premium renders",
-            "MAX + CLEAN modes",
-            "No watermark"
-        ]
-    )
-    
-    static let earlyAccess = PricingPlan(
-        id: .earlyAccess,
-        title: "Founder Access",
-        subtitle: "Support the launch",
-        priceText: "$19 presale",
-        badgeText: "Limited",
-        isHighlighted: false,
-        bulletPoints: [
-            "10 premium renders",
-            "Founder badge",
-            "Early feature access"
-        ]
+            "Everything in Weekly Boost",
+            "Creator presets (dating, social, brand)",
+            "Higher generation limits"
+        ],
+        isMostPopular: false,
+        cancelText: "Cancel anytime · No questions asked"
     )
     
     static let all: [PricingPlan] = [
-        free,
-        weekly,
+        weekly,      // Most popular first
         monthlyPro,
-        oneTimePack,
-        earlyAccess
+        free         // Free last
     ]
 }
-
-

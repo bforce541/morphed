@@ -5,154 +5,154 @@ import UIKit
 
 struct ProfileView: View {
     @EnvironmentObject var authManager: AuthManager
-    @State private var showSettings = false
-    @State private var showPaywall = false
-    @State private var showLogoutAlert = false
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @StateObject private var router = AppRouter.shared
+    
+    private var isPro: Bool {
+        subscriptionManager.state.tier != .free
+    }
     
     var body: some View {
         NavigationView {
             ZStack {
-                Color.midnightNavy.ignoresSafeArea()
+                // Background gradient
+                Color.backgroundGradient
+                    .ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 32) {
-                        // Profile Header
-                        VStack(spacing: 16) {
-                            // Avatar
+                    VStack(spacing: DesignSystem.Spacing.xl) {
+                        // Profile Header - Identity Only
+                        VStack(spacing: DesignSystem.Spacing.md) {
+                            // Avatar with glow
                             ZStack {
+                                // Glow ring
                                 Circle()
                                     .fill(
                                         LinearGradient(
-                                            colors: [Color.electricBlue, Color.cyberCyan],
+                                            colors: [Color.primaryAccent.opacity(0.3), Color.primaryAccent.opacity(0.1)],
                                             startPoint: .topLeading,
                                             endPoint: .bottomTrailing
                                         )
                                     )
-                                    .frame(width: 100, height: 100)
-                                    .shadow(color: .cyberCyan.opacity(0.5), radius: 10)
+                                    .frame(width: 140, height: 140)
+                                    .blur(radius: 8)
                                 
+                                // Avatar circle
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.primaryAccent, Color.primaryAccent.opacity(0.7)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 120, height: 120)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primaryAccent.opacity(0.5), lineWidth: 2)
+                                    )
+                                
+                                // Initials
                                 Text(initials)
-                                    .font(.system(size: 36, weight: .bold))
+                                    .font(.system(size: 48, weight: .bold, design: .default))
                                     .foregroundColor(.midnightNavy)
                             }
+                            .padding(.top, DesignSystem.Spacing.lg)
                             
                             // Name
                             Text(authManager.currentUser?.name ?? "User")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.offWhite)
+                                .font(.system(.largeTitle, design: .default, weight: .semibold))
+                                .foregroundColor(.textPrimary)
                             
                             // Email
                             Text(authManager.currentUser?.email ?? "")
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.offWhite.opacity(0.6))
-                        }
-                        .padding(.top, 40)
-                        .padding(.bottom, 20)
-                        
-                        // Menu Items
-                        VStack(spacing: 12) {
-                            ProfileMenuItem(
-                                icon: "gearshape.fill",
-                                title: "Settings",
-                                color: .electricBlue
-                            ) {
-                                showSettings = true
-                            }
+                                .font(.system(.subheadline, design: .default))
+                                .foregroundColor(.textSecondary)
                             
-                            ProfileMenuItem(
-                                icon: "crown.fill",
-                                title: "Premium",
-                                color: .cyberCyan,
-                                showBadge: true
-                            ) {
-                                showPaywall = true
-                            }
-                            
-                            ProfileMenuItem(
-                                icon: "person.2.wave.2.fill",
-                                title: "Invite Friends (Referral)",
-                                color: .electricBlue
-                            ) {
-                                if let link = ReferralManager.referralLink() {
-                                    UIPasteboard.general.string = link.absoluteString
+                            // Account Tier
+                            Button(action: {
+                                if !isPro {
+                                    Haptics.impact(style: .light)
+                                    router.showPremium()
                                 }
-                                Haptics.notification(type: .success)
+                            }) {
+                                HStack(spacing: DesignSystem.Spacing.sm) {
+                                    Text("Account Tier")
+                                        .font(.system(.subheadline, design: .default))
+                                        .foregroundColor(.textSecondary)
+                                    
+                                    if isPro {
+                                        PremiumBadge(size: .medium)
+                                    } else {
+                                        Text("Free")
+                                            .font(.system(.subheadline, design: .default, weight: .medium))
+                                            .foregroundColor(.textSecondary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(Color.cardBackground)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .padding(.top, DesignSystem.Spacing.xs)
+                            
+                            // Locked features reminder for free users
+                            if !isPro {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.textSecondary)
+                                    Text("HD & MAX mode locked")
+                                        .font(.system(.caption, design: .default))
+                                        .foregroundColor(.textSecondary)
+                                }
+                                .padding(.top, DesignSystem.Spacing.xs)
                             }
                             
-                            ProfileMenuItem(
-                                icon: "questionmark.circle.fill",
-                                title: "Help & Support",
-                                color: .cyberCyan
-                            ) {
-                                // Help action
-                            }
-                            
-                            ProfileMenuItem(
-                                icon: "doc.text.fill",
-                                title: "Terms of Service",
-                                color: .offWhite.opacity(0.5)
-                            ) {
-                                // Terms action
-                            }
-                            
-                            ProfileMenuItem(
-                                icon: "lock.shield.fill",
-                                title: "Privacy Policy",
-                                color: .offWhite.opacity(0.5)
-                            ) {
-                                // Privacy action
+                            // Upgrade button for free users
+                            if !isPro {
+                                MorphedButton(
+                                    "Upgrade to Pro",
+                                    icon: "crown.fill",
+                                    style: .primary
+                                ) {
+                                    Haptics.impact(style: .medium)
+                                    router.showPremium()
+                                }
+                                .padding(.horizontal, DesignSystem.Spacing.xl)
+                                .padding(.top, DesignSystem.Spacing.md)
                             }
                         }
-                        .padding(.horizontal, 20)
-                        
-                        // Logout Button
-                        Button(action: {
-                            showLogoutAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "arrow.right.square.fill")
-                                Text("Log Out")
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                            .foregroundColor(.cyberCyan)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(Color.deepSlate)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.cyberCyan.opacity(0.3), lineWidth: 1)
-                            )
-                            .cornerRadius(16)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        
-                        // App Version
-                        Text("Version 1.0.0")
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(.offWhite.opacity(0.4))
-                            .padding(.top, 20)
-                            .padding(.bottom, 40)
+                        .padding(.bottom, DesignSystem.Spacing.xl)
+                    }
+                    .padding(.top, DesignSystem.Spacing.md)
+                }
+            }
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Profile")
+                        .font(.system(.largeTitle, design: .default, weight: .semibold))
+                        .foregroundColor(.titleColor)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        Haptics.impact(style: .light)
+                        router.presentSettings()
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.textSecondary)
                     }
                 }
             }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.large)
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-            }
-            .sheet(isPresented: $showPaywall) {
+            .sheet(isPresented: $router.showPaywall) {
                 PaywallView()
             }
-            .alert("Log Out", isPresented: $showLogoutAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Log Out", role: .destructive) {
-                    Task {
-                        await authManager.logout()
-                    }
-                }
-            } message: {
-                Text("Are you sure you want to log out?")
+            .sheet(isPresented: $router.showSettings) {
+                SettingsView()
             }
         }
     }
@@ -164,58 +164,5 @@ struct ProfileView: View {
             return String(components[0].prefix(1)) + String(components[1].prefix(1))
         }
         return String(name.prefix(2)).uppercased()
-    }
-}
-
-struct ProfileMenuItem: View {
-    let icon: String
-    let title: String
-    let color: Color
-    var showBadge: Bool = false
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundColor(color)
-                .frame(width: 32, height: 32)
-            
-            Text(title)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.offWhite)
-            
-            Spacer()
-            
-            if showBadge {
-                Text("PRO")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.midnightNavy)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.cyberCyan, Color.electricBlue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(8)
-            }
-            
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.offWhite.opacity(0.3))
-        }
-        .padding(16)
-        .background(Color.deepSlate)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.cyberCyan.opacity(0.1), lineWidth: 1)
-        )
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }

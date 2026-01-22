@@ -3,20 +3,44 @@
 import SwiftUI
 
 extension Color {
-    // Primary (Glow) - Cyber Cyan
-    static let cyberCyan = Color(hex: "99F3FF")
+    // MARK: - Design System Colors
     
-    // Secondary (Accents) - Electric Blue
-    static let electricBlue = Color(hex: "36A2EB")
+    // Primary Accent (Premium / CTA) - Cyan-Blue
+    static let primaryAccent = Color(hex: "4FD1FF")
     
-    // Background (Deep) - Midnight Navy
-    static let midnightNavy = Color(hex: "0B1B2B")
+    // Secondary Accent (Muted) - Slate Blue
+    static let secondaryAccent = Color(hex: "1E344A")
     
-    // Surface (Cards/UI) - Deep Slate
-    static let deepSlate = Color(hex: "1E2D3D")
+    // Background Gradient Colors
+    static let backgroundTop = Color(hex: "071A2B")
+    static let backgroundBottom = Color(hex: "030B14")
     
-    // Text (Readable) - Off-White
-    static let offWhite = Color(hex: "E0E6ED")
+    // Card Background
+    static let cardBackground = Color(hex: "0F2436").opacity(0.85)
+    
+    // Dividers
+    static let divider = Color(hex: "1A2F44")
+    
+    // Text Colors
+    static let textPrimary = Color.white
+    static let textSecondary = Color.white.opacity(0.65)
+    static let titleColor = Color(hex: "E6F1FA").opacity(0.9)
+    
+    // Legacy support (mapped to new system)
+    static var cyberCyan: Color { primaryAccent }
+    static var electricBlue: Color { primaryAccent }
+    static var midnightNavy: Color { backgroundBottom }
+    static var deepSlate: Color { secondaryAccent }
+    static var offWhite: Color { textPrimary }
+    
+    // MARK: - Background Gradient
+    static var backgroundGradient: LinearGradient {
+        LinearGradient(
+            colors: [backgroundTop, backgroundBottom],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
     
     // Helper initializer for hex colors
     init(hex: String) {
@@ -41,6 +65,28 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+// MARK: - Design System Constants
+enum DesignSystem {
+    enum Spacing {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 24
+        static let xl: CGFloat = 32
+    }
+    
+    enum CornerRadius {
+        static let sm: CGFloat = 12
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 20
+    }
+    
+    enum Animation {
+        static let standard = SwiftUI.Animation.easeOut(duration: 0.25)
+        static let fast = SwiftUI.Animation.easeOut(duration: 0.2)
     }
 }
 

@@ -130,17 +130,19 @@ final class AuthManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        try? await supabase.auth.signOut()
+        do {
+            try await supabase.auth.signOut()
+        } catch {
+            // Silently handle sign out errors
+        }
         updateFromSession(nil)
     }
     
     private func listenForAuthChanges() {
         authStateTask?.cancel()
-        authStateTask = Task { [weak self] in
-            for await (_, session) in await supabase.auth.authStateChanges {
-                await MainActor.run {
-                    self?.updateFromSession(session)
-                }
+        authStateTask = Task { @MainActor [weak self] in
+            for await (_, session) in supabase.auth.authStateChanges {
+                self?.updateFromSession(session)
             }
         }
     }

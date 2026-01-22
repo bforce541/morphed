@@ -3,6 +3,7 @@
 import SwiftUI
 import UIKit
 import Combine
+import CoreImage
 
 @MainActor
 class EditorViewModel: ObservableObject {
@@ -16,6 +17,7 @@ class EditorViewModel: ObservableObject {
     @Published var showImagePicker = false
     @Published var toastMessage: String?
     @Published var showToast = false
+    @Published var hasGeneratedPreview = false
     
     enum EditMode: String, CaseIterable, Codable {
         case max = "max"
@@ -28,6 +30,48 @@ class EditorViewModel: ObservableObject {
             }
         }
     }
+    
+    // MARK: - Stubbed Generation
+    
+    func startGenerationStub() async {
+        guard let originalImage = originalImage,
+              let selectedMode = selectedMode else { return }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        // Simulate processing delay
+        try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5 seconds
+        
+        // Create preview image with blur and watermark
+        var previewImage = originalImage
+        
+        // Apply blur effect for preview
+        if let blurred = applyBlur(to: originalImage) {
+            previewImage = blurred
+        }
+        
+        // Apply watermark for free users
+        if FeatureGates.shouldApplyWatermark() {
+            previewImage = WatermarkRenderer.addWatermark(to: previewImage)
+        }
+        
+        editedImage = previewImage
+        
+        // Record usage
+        UsageTracker.recordMorph(isMax: selectedMode == .max)
+        SubscriptionManager.shared.recordMorph(isPremium: selectedMode == .max)
+        
+        Haptics.notification(type: .success)
+        isLoading = false
+        
+        // Trigger post-generation preview after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.hasGeneratedPreview = true
+        }
+    }
+    
+    // MARK: - Real Generation (for when Gemini is ready)
     
     func morphImage() async {
         guard let originalImage = originalImage,
@@ -62,6 +106,7 @@ class EditorViewModel: ObservableObject {
             }
             
             editedImage = finalImage
+            hasGeneratedPreview = true
             
             // Save to history
             let historyItem = HistoryItem(
@@ -86,6 +131,23 @@ class EditorViewModel: ObservableObject {
         isLoading = false
     }
     
+    // MARK: - Helper Methods
+    
+    private func applyBlur(to image: UIImage) -> UIImage? {
+        guard let ciImage = CIImage(image: image) else { return nil }
+        
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(ciImage, forKey: kCIInputImageKey)
+        filter?.setValue(8.0, forKey: kCIInputRadiusKey)
+        
+        guard let outputImage = filter?.outputImage else { return nil }
+        
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(outputImage, from: ciImage.extent) else { return nil }
+        
+        return UIImage(cgImage: cgImage)
+    }
+    
     func saveToPhotos() async {
         guard let editedImage = editedImage else { return }
         
@@ -99,6 +161,13 @@ class EditorViewModel: ObservableObject {
             showError = true
             Haptics.notification(type: .error)
         }
+    }
+    
+    func removeWatermark() {
+        guard let originalImage = originalImage else { return }
+        // When premium is unlocked, show the original without watermark
+        editedImage = originalImage
+        hasGeneratedPreview = true
     }
     
     private func showToast(message: String) {
@@ -118,4 +187,3 @@ class EditorViewModel: ObservableObject {
         }
     }
 }
-
