@@ -47,7 +47,7 @@ struct LoginView: View {
                             .font(.system(size: 48, weight: .bold))
                             .foregroundColor(.offWhite)
                         
-                        Text("Transform your photos with AI")
+                        Text("Look like the upgraded version of you")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.offWhite.opacity(0.7))
                     }
@@ -75,6 +75,10 @@ struct LoginView: View {
                                         .stroke(focusedField == .identifier ? Color.cyberCyan : Color.clear, lineWidth: 2)
                                 )
                                 .focused($focusedField, equals: .identifier)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    focusedField = .identifier
+                                }
                         }
                         
                         // Password Field
@@ -114,6 +118,10 @@ struct LoginView: View {
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
                             )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                focusedField = .password
+                            }
                         }
                         
                         // Login Button
@@ -127,7 +135,7 @@ struct LoginView: View {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 } else {
-                                    Text("Login")
+                                    Text("Continue")
                                         .font(.system(size: 18, weight: .semibold))
                                 }
                             }

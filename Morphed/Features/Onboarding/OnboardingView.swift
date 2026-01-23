@@ -125,14 +125,14 @@ struct OnboardingScreen1: View {
                 .padding(.horizontal, DesignSystem.Spacing.xl)
             
             // Subtext
-            Text("Dating · Socials · Professional presence")
+            Text("Dating profiles · Social media · Professional photos")
                 .font(.system(.headline, design: .default))
                 .foregroundColor(.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DesignSystem.Spacing.xl)
             
             // Micro-line
-            Text("AI-powered photo upgrades in seconds")
+            Text("Upgrade your look in ~5 seconds")
                 .font(.system(.caption, design: .default))
                 .foregroundColor(.textSecondary.opacity(0.7))
                 .padding(.top, DesignSystem.Spacing.sm)
@@ -156,7 +156,7 @@ struct OnboardingScreen2: View {
                 .padding(.bottom, DesignSystem.Spacing.lg)
             
             // Title
-            Text("Built for real-world results")
+            Text("Built for real world results")
                 .font(.system(.largeTitle, design: .default, weight: .semibold))
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
@@ -164,8 +164,8 @@ struct OnboardingScreen2: View {
             
             // Bullet points
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                BulletPoint(text: "MAX mode for dating profiles")
-                BulletPoint(text: "CLEAN mode for professional photos")
+                BulletPoint(text: "MAX mode for dating profiles", boldText: "MAX")
+                BulletPoint(text: "CLEAN mode for professional photos", boldText: "CLEAN")
                 BulletPoint(text: "Studio-quality lighting & detail")
             }
             .padding(.horizontal, DesignSystem.Spacing.xl)
@@ -198,7 +198,7 @@ struct OnboardingScreen3: View {
                 .padding(.bottom, DesignSystem.Spacing.lg)
             
             // Title
-            Text("Try it free")
+            Text("See your preview free")
                 .font(.system(.largeTitle, design: .default, weight: .semibold))
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
@@ -216,7 +216,7 @@ struct OnboardingScreen3: View {
             
             // Primary button
             MorphedButton(
-                "Start",
+                "See my upgrade",
                 icon: "sparkles",
                 style: .primary
             ) {
@@ -242,6 +242,12 @@ struct OnboardingScreen3: View {
 // MARK: - Bullet Point Component
 struct BulletPoint: View {
     let text: String
+    let boldText: String?
+    
+    init(text: String, boldText: String? = nil) {
+        self.text = text
+        self.boldText = boldText
+    }
     
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
@@ -249,9 +255,23 @@ struct BulletPoint: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.primaryAccent)
             
-            Text(text)
-                .font(.system(.body, design: .default))
-                .foregroundColor(.textPrimary)
+            if let boldText = boldText, let range = text.range(of: boldText) {
+                let before = String(text[..<range.lowerBound])
+                let after = String(text[range.upperBound...])
+                (Text(before)
+                    .font(.system(.body, design: .default))
+                    .foregroundColor(.textPrimary) +
+                 Text(boldText)
+                    .font(.system(.body, design: .default, weight: .bold))
+                    .foregroundColor(.textPrimary) +
+                 Text(after)
+                    .font(.system(.body, design: .default))
+                    .foregroundColor(.textPrimary))
+            } else {
+                Text(text)
+                    .font(.system(.body, design: .default))
+                    .foregroundColor(.textPrimary)
+            }
             
             Spacer()
         }
