@@ -14,35 +14,47 @@ enum WatermarkRenderer {
         
         image.draw(in: CGRect(origin: .zero, size: size))
         
-        let watermarkText = "Morphed"
-        let fontSize = min(size.width, size.height) * 0.06
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
-        
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .right
-        
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.white.withAlphaComponent(0.85),
-            .paragraphStyle: paragraph,
-            .shadow: {
-                let shadow = NSShadow()
-                shadow.shadowColor = UIColor.black.withAlphaComponent(0.6)
-                shadow.shadowBlurRadius = 4
-                shadow.shadowOffset = CGSize(width: 0, height: 1)
-                return shadow
-            }()
-        ]
-        
-        let margin = min(size.width, size.height) * 0.03
-        let textRect = CGRect(
-            x: margin,
-            y: size.height - fontSize * 1.8 - margin,
-            width: size.width - margin * 2,
-            height: fontSize * 1.8
-        )
-        
-        watermarkText.draw(in: textRect, withAttributes: attributes)
+        if let logo = UIImage(named: "morphednobg") ?? UIImage(named: "AppLogo") {
+            let maxLogoWidth = min(size.width, size.height) * 0.45
+            let aspect = logo.size.width / max(logo.size.height, 1)
+            let logoSize = CGSize(width: maxLogoWidth, height: maxLogoWidth / aspect)
+            let logoOrigin = CGPoint(
+                x: size.width - logoSize.width - size.width * 0.002,
+                y: size.height - logoSize.height - size.height * 0.03
+            )
+            let logoRect = CGRect(origin: logoOrigin, size: logoSize)
+            logo.draw(in: logoRect, blendMode: .normal, alpha: 0.85)
+        } else {
+            let watermarkText = "MORPHED"
+            let fontSize = min(size.width, size.height) * 0.05
+            let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+            
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .right
+            
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.85),
+                .paragraphStyle: paragraph,
+                .shadow: {
+                    let shadow = NSShadow()
+                    shadow.shadowColor = UIColor.black.withAlphaComponent(0.6)
+                    shadow.shadowBlurRadius = 4
+                    shadow.shadowOffset = CGSize(width: 0, height: 1)
+                    return shadow
+                }()
+            ]
+            
+            let margin: CGFloat = fontSize * 0.8
+            let textRect = CGRect(
+                x: margin,
+                y: size.height - fontSize * 1.8 - margin,
+                width: size.width - margin * 2,
+                height: fontSize * 1.8
+            )
+            
+            watermarkText.draw(in: textRect, withAttributes: attributes)
+        }
         
         return UIGraphicsGetImageFromCurrentImageContext() ?? image
     }
