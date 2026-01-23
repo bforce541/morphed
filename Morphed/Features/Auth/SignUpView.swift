@@ -10,6 +10,8 @@ struct SignUpView: View {
     @State private var identifier = ""
     @State private var password = ""
     @State private var confirmPassword = ""
+    @State private var showPassword = false
+    @State private var showConfirmPassword = false
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showInfo = false
@@ -87,42 +89,82 @@ struct SignUpView: View {
                             }
                             
                             // Password Field
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Password")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.offWhite)
-                                
-                                SecureField("", text: $password, prompt: Text("Create a password").foregroundColor(.offWhite.opacity(0.5)))
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(.offWhite)
-                                    .padding()
-                                    .background(Color.deepSlate)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
-                                    )
-                                    .focused($focusedField, equals: .password)
-                            }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.offWhite)
                             
-                            // Confirm Password Field
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Confirm Password")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.offWhite)
+                            HStack(spacing: 8) {
+                                Group {
+                                    if showPassword {
+                                        TextField("", text: $password, prompt: Text("Create a password").foregroundColor(.offWhite.opacity(0.5)))
+                                    } else {
+                                        SecureField("", text: $password, prompt: Text("Create a password").foregroundColor(.offWhite.opacity(0.5)))
+                                    }
+                                }
+                                .textFieldStyle(.plain)
+                                .foregroundColor(.offWhite)
+                                .focused($focusedField, equals: .password)
                                 
-                                SecureField("", text: $confirmPassword, prompt: Text("Confirm your password").foregroundColor(.offWhite.opacity(0.5)))
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(.offWhite)
-                                    .padding()
-                                    .background(Color.deepSlate)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusedField == .confirmPassword ? Color.cyberCyan : Color.clear, lineWidth: 2)
-                                    )
-                                    .focused($focusedField, equals: .confirmPassword)
+                                Button(action: {
+                                    Haptics.impact(style: .light)
+                                    showPassword.toggle()
+                                }) {
+                                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.offWhite.opacity(0.7))
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel(showPassword ? "Hide password" : "Show password")
                             }
+                            .padding()
+                            .background(Color.deepSlate)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
+                            )
+                        }
+                        
+                        // Confirm Password Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Confirm Password")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.offWhite)
+                            
+                            HStack(spacing: 8) {
+                                Group {
+                                    if showConfirmPassword {
+                                        TextField("", text: $confirmPassword, prompt: Text("Confirm your password").foregroundColor(.offWhite.opacity(0.5)))
+                                    } else {
+                                        SecureField("", text: $confirmPassword, prompt: Text("Confirm your password").foregroundColor(.offWhite.opacity(0.5)))
+                                    }
+                                }
+                                .textFieldStyle(.plain)
+                                .foregroundColor(.offWhite)
+                                .focused($focusedField, equals: .confirmPassword)
+                                
+                                Button(action: {
+                                    Haptics.impact(style: .light)
+                                    showConfirmPassword.toggle()
+                                }) {
+                                    Image(systemName: showConfirmPassword ? "eye.slash" : "eye")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.offWhite.opacity(0.7))
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel(showConfirmPassword ? "Hide password" : "Show password")
+                            }
+                            .padding()
+                            .background(Color.deepSlate)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(focusedField == .confirmPassword ? Color.cyberCyan : Color.clear, lineWidth: 2)
+                            )
+                        }
                             
                             // Sign Up Button
                             Button(action: {

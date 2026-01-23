@@ -22,9 +22,10 @@ struct HistoryView: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: DesignSystem.Spacing.sm),
-                            GridItem(.flexible(), spacing: DesignSystem.Spacing.sm)
-                        ], spacing: DesignSystem.Spacing.sm) {
+                            GridItem(.flexible(), spacing: 2),
+                            GridItem(.flexible(), spacing: 2),
+                            GridItem(.flexible(), spacing: 2)
+                        ], spacing: 2) {
                             ForEach(viewModel.items) { item in
                                 HistoryItemCard(item: item) {
                                     Haptics.impact(style: .light)
@@ -32,7 +33,7 @@ struct HistoryView: View {
                                 }
                             }
                         }
-                        .padding(DesignSystem.Spacing.md)
+                        .padding(2)
                     }
                 }
             }
@@ -95,12 +96,6 @@ struct EmptyHistoryView: View {
                 .padding(.horizontal, DesignSystem.Spacing.xl)
             
             // Subtext
-            Text("Every upgrade you generate is saved automatically.")
-                .font(.system(.subheadline, design: .default))
-                .foregroundColor(.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DesignSystem.Spacing.xl)
-            
             // CTA Button
             MorphedButton(
                 "Generate your first upgrade",
@@ -125,36 +120,18 @@ struct HistoryItemCard: View {
     
     var body: some View {
         Button(action: onTap) {
-            ZStack {
+            Group {
                 if let image = item.editedImage {
                     Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 200)
+                        .aspectRatio(1, contentMode: .fill)
                         .clipped()
                 } else {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                    Rectangle()
                         .fill(Color.cardBackground)
-                        .frame(height: 200)
-                }
-                
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text(item.mode.displayName)
-                            .font(.system(size: 10, weight: .semibold, design: .default))
-                            .foregroundColor(.midnightNavy)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.primaryAccent)
-                            .cornerRadius(8)
-                        
-                        Spacer()
-                    }
-                    .padding(DesignSystem.Spacing.sm)
+                        .aspectRatio(1, contentMode: .fit)
                 }
             }
-            .cornerRadius(DesignSystem.CornerRadius.sm)
         }
         .buttonStyle(PlainButtonStyle())
     }

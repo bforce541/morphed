@@ -54,6 +54,10 @@ struct EditorView: View {
                             onSelect: {
                                 Haptics.impact(style: .medium)
                                 viewModel.showImagePicker = true
+                            },
+                            onRemove: viewModel.isLoading ? nil : {
+                                Haptics.impact(style: .light)
+                                viewModel.clearSelectedImage()
                             }
                         )
                         .padding(.horizontal, DesignSystem.Spacing.md)
@@ -115,7 +119,8 @@ struct EditorView: View {
                                 title: "Morphed",
                                 image: viewModel.editedImage,
                                 isLoading: false,
-                                onSelect: nil
+                                onSelect: nil,
+                                onRemove: nil
                             )
                             .padding(.horizontal, DesignSystem.Spacing.md)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -123,7 +128,7 @@ struct EditorView: View {
                             // Save / Export Buttons
                             VStack(spacing: DesignSystem.Spacing.sm) {
                                 MorphedButton(
-                                    "Save Preview",
+                                    "Save Image",
                                     icon: "square.and.arrow.down",
                                     style: .primary
                                 ) {
@@ -293,6 +298,7 @@ struct ImageCard: View {
     let image: UIImage?
     let isLoading: Bool
     let onSelect: (() -> Void)?
+    let onRemove: (() -> Void)?
     
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -300,7 +306,7 @@ struct ImageCard: View {
                 .font(.system(.headline, design: .default, weight: .semibold))
                 .foregroundColor(.textPrimary)
             
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
                     .fill(Color.cardBackground)
                     .frame(height: 420)
@@ -316,6 +322,26 @@ struct ImageCard: View {
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(DesignSystem.CornerRadius.md)
                         .frame(maxHeight: 420)
+                    
+                    if let onRemove = onRemove {
+                        Button(action: {
+                            onRemove()
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.textPrimary)
+                                .padding(8)
+                                .background(Color.cardBackground.opacity(0.9))
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 2)
+                        }
+                        .padding(DesignSystem.Spacing.sm)
+                        .buttonStyle(.plain)
+                    }
                 } else {
                     VStack(spacing: DesignSystem.Spacing.md) {
                         Image(systemName: "photo.on.rectangle.angled")
@@ -332,13 +358,11 @@ struct ImageCard: View {
                                     .font(.system(.subheadline, design: .default))
                                     .foregroundColor(.textSecondary)
                                 
-                                Text("Takes ~5 seconds • HD results")
-                                    .font(.system(.caption, design: .default))
-                                    .foregroundColor(.textSecondary)
-                                    .padding(.top, DesignSystem.Spacing.xs)
                             }
+                            .multilineTextAlignment(.center)
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 
                 if isLoading {

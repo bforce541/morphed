@@ -7,6 +7,7 @@ struct LoginView: View {
     @StateObject private var authManager = AuthManager.shared
     @State private var identifier = ""
     @State private var password = ""
+    @State private var showPassword = false
     @State private var showSignUp = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -82,17 +83,37 @@ struct LoginView: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.offWhite)
                             
-                            SecureField("", text: $password, prompt: Text("Enter your password").foregroundColor(.offWhite.opacity(0.5)))
+                            HStack(spacing: 8) {
+                                Group {
+                                    if showPassword {
+                                        TextField("", text: $password, prompt: Text("Enter your password").foregroundColor(.offWhite.opacity(0.5)))
+                                    } else {
+                                        SecureField("", text: $password, prompt: Text("Enter your password").foregroundColor(.offWhite.opacity(0.5)))
+                                    }
+                                }
                                 .textFieldStyle(.plain)
                                 .foregroundColor(.offWhite)
-                                .padding()
-                                .background(Color.deepSlate)
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
-                                )
                                 .focused($focusedField, equals: .password)
+                                
+                                Button(action: {
+                                    Haptics.impact(style: .light)
+                                    showPassword.toggle()
+                                }) {
+                                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.offWhite.opacity(0.7))
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel(showPassword ? "Hide password" : "Show password")
+                            }
+                            .padding()
+                            .background(Color.deepSlate)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
+                            )
                         }
                         
                         // Login Button

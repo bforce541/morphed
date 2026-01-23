@@ -9,12 +9,11 @@ struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @StateObject private var router = AppRouter.shared
-    @State private var baseURL: String = UserDefaults.standard.string(forKey: "morphed_base_url") ?? "http://localhost:3000"
-    @State private var showResetAlert = false
     @State private var showLogoutAlert = false
     @State private var showShareSheet = false
     @State private var showTerms = false
     @State private var showPrivacy = false
+    @State private var showChangePassword = false
     
     private var isPro: Bool {
         subscriptionManager.state.tier != .free
@@ -74,6 +73,23 @@ struct SettingsView: View {
                             .padding(.horizontal, DesignSystem.Spacing.md)
                         }
                         
+                        // Privacy & Security Section
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            SectionHeader("Privacy & Security")
+                            
+                            VStack(spacing: DesignSystem.Spacing.xs) {
+                                SettingsMenuItem(
+                                    icon: "lock.circle.fill",
+                                    title: "Change Password",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showChangePassword = true
+                                }
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                        }
+                        
                         // Legal Section
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                             SectionHeader("Legal")
@@ -96,60 +112,6 @@ struct SettingsView: View {
                                     Haptics.impact(style: .light)
                                     showPrivacy = true
                                 }
-                            }
-                            .padding(.horizontal, DesignSystem.Spacing.md)
-                        }
-                        
-                        // API Configuration (Development)
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            SectionHeader("Development")
-                            
-                            MorphedCard {
-                                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                                    Text("Base URL")
-                                        .font(.system(.subheadline, design: .default, weight: .medium))
-                                        .foregroundColor(.textSecondary)
-                                    
-                                    TextField("http://localhost:3000", text: $baseURL)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(.body, design: .default))
-                                        .foregroundColor(.textPrimary)
-                                        .autocapitalization(.none)
-                                        .autocorrectionDisabled()
-                                        .keyboardType(.URL)
-                                        .padding(DesignSystem.Spacing.sm)
-                                        .background(Color.secondaryAccent.opacity(0.5))
-                                        .cornerRadius(DesignSystem.CornerRadius.sm)
-                                    
-                                    Text("For iOS Simulator: use http://localhost:3000\nFor physical device: use your computer's LAN IP (e.g., http://192.168.1.100:3000)")
-                                        .font(.system(.caption, design: .default))
-                                        .foregroundColor(.textSecondary)
-                                        .lineSpacing(4)
-                                }
-                            }
-                            .padding(.horizontal, DesignSystem.Spacing.md)
-                            
-                            // Save Button
-                            MorphedButton(
-                                "Save",
-                                icon: "checkmark.circle.fill",
-                                style: .primary
-                            ) {
-                                UserDefaults.standard.set(baseURL, forKey: "morphed_base_url")
-                                Haptics.notification(type: .success)
-                                dismiss()
-                            }
-                            .padding(.horizontal, DesignSystem.Spacing.md)
-                            
-                            // Reset Button
-                            Button(action: {
-                                showResetAlert = true
-                            }) {
-                                Text("Reset to Default")
-                                    .font(.system(.body, design: .default, weight: .medium))
-                                    .foregroundColor(.textSecondary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, DesignSystem.Spacing.sm)
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
                         }
@@ -191,15 +153,9 @@ struct SettingsView: View {
             .sheet(isPresented: $showPrivacy) {
                 SafariView(url: router.openPrivacy())
             }
-            .alert("Reset to Default?", isPresented: $showResetAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Reset") {
-                    baseURL = "http://localhost:3000"
-                    UserDefaults.standard.removeObject(forKey: "morphed_base_url")
-                    Haptics.notification(type: .success)
-                }
-            } message: {
-                Text("This will reset the base URL to http://localhost:3000")
+            .sheet(isPresented: $showChangePassword) {
+                ChangePasswordView()
+                    .environmentObject(authManager)
             }
             .alert("Log Out", isPresented: $showLogoutAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -212,6 +168,163 @@ struct SettingsView: View {
                 Text("Are you sure you want to log out?")
             }
         }
+    }
+}
+
+struct ChangePasswordView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authManager: AuthManager
+    @State private var oldPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var showOldPassword = false
+    @State private var showNewPassword = false
+    @State private var showConfirmPassword = false
+    @State private var errorMessage: String?
+    @State private var isSaving = false
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.backgroundGradient
+                    .ignoresSafeArea()
+                
+                VStack(spacing: DesignSystem.Spacing.lg) {
+                    MorphedCard {
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            passwordField(
+                                title: "Current Password",
+                                placeholder: "Enter current password",
+                                text: $oldPassword,
+                                isVisible: $showOldPassword
+                            )
+                            
+                            passwordField(
+                                title: "New Password",
+                                placeholder: "Enter new password",
+                                text: $newPassword,
+                                isVisible: $showNewPassword
+                            )
+                            .padding(.top, DesignSystem.Spacing.xs)
+                            
+                            passwordField(
+                                title: "Confirm Password",
+                                placeholder: "Re-enter new password",
+                                text: $confirmPassword,
+                                isVisible: $showConfirmPassword
+                            )
+                            .padding(.top, DesignSystem.Spacing.xs)
+                            
+                            if let errorMessage {
+                                Text(errorMessage)
+                                    .font(.system(.caption, design: .default))
+                                    .foregroundColor(.red)
+                                    .padding(.top, DesignSystem.Spacing.xs)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    
+                    MorphedButton(
+                        isSaving ? "Updating..." : "Update Password",
+                        icon: isSaving ? nil : "checkmark.circle.fill",
+                        style: .primary
+                    ) {
+                        Task {
+                            await updatePassword()
+                        }
+                    }
+                    .disabled(isSaving)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    
+                    Spacer()
+                }
+                .padding(.top, DesignSystem.Spacing.lg)
+            }
+            .navigationTitle("Change Password")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        Haptics.impact(style: .light)
+                        dismiss()
+                    }
+                    .foregroundColor(.textPrimary)
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func updatePassword() async {
+        errorMessage = nil
+        
+        let trimmedNew = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedConfirm = confirmPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOld = oldPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmedOld.isEmpty else {
+            errorMessage = "Please enter your current password."
+            return
+        }
+        guard !trimmedNew.isEmpty else {
+            errorMessage = "Please enter a new password."
+            return
+        }
+        guard trimmedNew == trimmedConfirm else {
+            errorMessage = "Passwords do not match."
+            return
+        }
+        
+        isSaving = true
+        do {
+            try await authManager.updatePassword(oldPassword: trimmedOld, newPassword: trimmedNew)
+            Haptics.notification(type: .success)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isSaving = false
+    }
+    
+    @ViewBuilder
+    private func passwordField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        isVisible: Binding<Bool>
+    ) -> some View {
+        Text(title)
+            .font(.system(.subheadline, design: .default, weight: .medium))
+            .foregroundColor(.textSecondary)
+        
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            Group {
+                if isVisible.wrappedValue {
+                    TextField(placeholder, text: text)
+                } else {
+                    SecureField(placeholder, text: text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .font(.system(.body, design: .default))
+            .foregroundColor(.textPrimary)
+            
+            Button(action: {
+                Haptics.impact(style: .light)
+                isVisible.wrappedValue.toggle()
+            }) {
+                Image(systemName: isVisible.wrappedValue ? "eye.slash" : "eye")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.textSecondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel(isVisible.wrappedValue ? "Hide password" : "Show password")
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(Color.secondaryAccent.opacity(0.5))
+        .cornerRadius(DesignSystem.CornerRadius.sm)
     }
 }
 
@@ -265,4 +378,3 @@ struct SafariView: UIViewControllerRepresentable {
     
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
-

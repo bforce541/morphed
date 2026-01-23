@@ -18,6 +18,8 @@ class EditorViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var showToast = false
     @Published var hasGeneratedPreview = false
+    @Published var didSaveToHistory = false
+    @Published var isPreviewBlurred = false
     
     enum EditMode: String, CaseIterable, Codable {
         case max = "max"
@@ -39,6 +41,8 @@ class EditorViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        didSaveToHistory = false
+        isPreviewBlurred = false
         
         // Simulate processing delay
         try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5 seconds
@@ -46,9 +50,10 @@ class EditorViewModel: ObservableObject {
         // Create preview image with blur and watermark
         var previewImage = originalImage
         
-        // Apply blur effect for preview
-        if let blurred = applyBlur(to: originalImage) {
+        let shouldBlurPreview = FeatureGates.shouldApplyWatermark()
+        if shouldBlurPreview, let blurred = applyBlur(to: originalImage, radius: previewBlurRadius(for: selectedMode)) {
             previewImage = blurred
+            isPreviewBlurred = true
         }
         
         // Apply watermark for free users
@@ -57,6 +62,7 @@ class EditorViewModel: ObservableObject {
         }
         
         editedImage = previewImage
+        didSaveToHistory = false
         
         // Record usage
         UsageTracker.recordMorph(isMax: selectedMode == .max)
@@ -79,6 +85,8 @@ class EditorViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        didSaveToHistory = false
+        isPreviewBlurred = false
         
         do {
             let resizedImage = ImageUtils.resizeImage(originalImage, maxDimension: 1536) ?? originalImage
@@ -107,6 +115,7 @@ class EditorViewModel: ObservableObject {
             
             editedImage = finalImage
             hasGeneratedPreview = true
+            isPreviewBlurred = false
             
             // Save to history
             let historyItem = HistoryItem(
@@ -115,6 +124,7 @@ class EditorViewModel: ObservableObject {
                 mode: selectedMode
             )
             saveToHistory(historyItem)
+            didSaveToHistory = true
             
             Haptics.notification(type: .success)
             showToast(message: "Image morphed successfully!")
@@ -133,12 +143,16 @@ class EditorViewModel: ObservableObject {
     
     // MARK: - Helper Methods
     
-    private func applyBlur(to image: UIImage) -> UIImage? {
+    private func previewBlurRadius(for mode: EditMode) -> CGFloat {
+        mode == .clean ? 11 : 9
+    }
+    
+    private func applyBlur(to image: UIImage, radius: CGFloat) -> UIImage? {
         guard let ciImage = CIImage(image: image) else { return nil }
         
         let filter = CIFilter(name: "CIGaussianBlur")
         filter?.setValue(ciImage, forKey: kCIInputImageKey)
-        filter?.setValue(8.0, forKey: kCIInputRadiusKey)
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
         
         guard let outputImage = filter?.outputImage else { return nil }
         
@@ -152,7 +166,24 @@ class EditorViewModel: ObservableObject {
         guard let editedImage = editedImage else { return }
         
         do {
-            try await PhotoSaver.saveImage(editedImage)
+            var imageToSave = editedImage
+            if FeatureGates.shouldApplyWatermark(),
+               !isPreviewBlurred,
+               let selectedMode = selectedMode,
+               let blurred = applyBlur(to: editedImage, radius: previewBlurRadius(for: selectedMode)) {
+                imageToSave = blurred
+            }
+            
+            try await PhotoSaver.saveImage(imageToSave)
+            if !didSaveToHistory, let selectedMode = selectedMode {
+                let historyItem = HistoryItem(
+                    originalImage: originalImage,
+                    editedImage: imageToSave,
+                    mode: selectedMode
+                )
+                saveToHistory(historyItem)
+                didSaveToHistory = true
+            }
             showSaveSuccess = true
             Haptics.notification(type: .success)
             showToast(message: "Saved to Photos!")
@@ -168,6 +199,15 @@ class EditorViewModel: ObservableObject {
         // When premium is unlocked, show the original without watermark
         editedImage = originalImage
         hasGeneratedPreview = true
+    }
+    
+    func clearSelectedImage() {
+        originalImage = nil
+        editedImage = nil
+        selectedMode = nil
+        hasGeneratedPreview = false
+        didSaveToHistory = false
+        isPreviewBlurred = false
     }
     
     private func showToast(message: String) {

@@ -1,6 +1,7 @@
 // morphed-ios/Morphed/Features/Editor/PostGenerationPreviewView.swift
 
 import SwiftUI
+import UIKit
 
 struct PostGenerationPreviewView: View {
     @Environment(\.dismiss) var dismiss
@@ -25,6 +26,11 @@ struct PostGenerationPreviewView: View {
         subscriptionManager.state.tier == .free
     }
     
+    private var blurRadius: CGFloat {
+        guard isFree else { return 0 }
+        return mode == .clean ? 11 : 9
+    }
+    
     var body: some View {
         ZStack {
             Color.backgroundGradient
@@ -36,26 +42,7 @@ struct PostGenerationPreviewView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .blur(radius: isFree ? 3 : 0)
-                    .overlay(
-                        // Watermark overlay for free users
-                        Group {
-                            if isFree {
-                                VStack {
-                                    Spacer()
-                                    HStack {
-                                        Spacer()
-                                        Text("MORPHED")
-                                            .font(.system(size: 24, weight: .bold, design: .default))
-                                            .foregroundColor(.white.opacity(0.9))
-                                            .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
-                                            .padding(.trailing, 20)
-                                            .padding(.bottom, 20)
-                                    }
-                                }
-                            }
-                        }
-                    )
+                    .blur(radius: blurRadius)
                 
                 // Bottom Actions
                 VStack(spacing: DesignSystem.Spacing.sm) {

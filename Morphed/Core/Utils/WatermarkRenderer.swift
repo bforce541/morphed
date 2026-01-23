@@ -3,7 +3,7 @@
 import UIKit
 
 enum WatermarkRenderer {
-    /// Adds a simple Morphed watermark to the bottom-right corner of an image.
+    /// Adds a Morphed watermark near the bottom-right corner of an image.
     /// If drawing fails, the original image is returned.
     static func addWatermark(to image: UIImage) -> UIImage {
         let scale = image.scale
@@ -14,8 +14,8 @@ enum WatermarkRenderer {
         
         image.draw(in: CGRect(origin: .zero, size: size))
         
-        let watermarkText = "MORPHED PREVIEW"
-        let fontSize = min(size.width, size.height) * 0.04
+        let watermarkText = "Morphed"
+        let fontSize = min(size.width, size.height) * 0.06
         let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         
         let paragraph = NSMutableParagraphStyle()
@@ -34,12 +34,12 @@ enum WatermarkRenderer {
             }()
         ]
         
-        let margin: CGFloat = fontSize * 0.6
+        let margin = min(size.width, size.height) * 0.03
         let textRect = CGRect(
             x: margin,
-            y: size.height - fontSize * 2 - margin,
+            y: size.height - fontSize * 1.8 - margin,
             width: size.width - margin * 2,
-            height: fontSize * 2
+            height: fontSize * 1.8
         )
         
         watermarkText.draw(in: textRect, withAttributes: attributes)
@@ -47,5 +47,3 @@ enum WatermarkRenderer {
         return UIGraphicsGetImageFromCurrentImageContext() ?? image
     }
 }
-
-

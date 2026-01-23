@@ -151,6 +151,9 @@ final class AuthManager: ObservableObject {
         if let user = supabase.auth.currentUser {
             currentUser = AppUser(from: user)
             isAuthenticated = true
+            Task { [weak self] in
+                await self?.refreshProfileDetails(for: user)
+            }
         }
     }
     
@@ -171,11 +174,21 @@ final class AuthManager: ObservableObject {
             updateFromSession(nil)
             throw AuthError.profileMissing
         }
+        await refreshProfileDetails(for: user)
     }
     
     private func updateFromSession(_ session: Session?) {
         if let user = session?.user ?? supabase.auth.currentUser {
-            currentUser = AppUser(from: user)
+            let baseUser = AppUser(from: user)
+            let isSameUser = currentUser?.id == baseUser.id
+            let existingAvatar = isSameUser ? currentUser?.avatarURL : nil
+            let existingName = isSameUser ? currentUser?.name : nil
+            currentUser = AppUser(
+                id: baseUser.id,
+                email: baseUser.email,
+                name: existingName ?? baseUser.name,
+                avatarURL: existingAvatar
+            )
             isAuthenticated = true
         } else {
             currentUser = nil
@@ -191,7 +204,8 @@ final class AuthManager: ObservableObject {
             id: user.id.uuidString,
             email: user.email,
             phone: user.phone,
-            name: resolvedName
+            name: resolvedName,
+            avatarURL: nil
         )
         
         do {
@@ -216,10 +230,130 @@ final class AuthManager: ObservableObject {
             return false
         }
     }
+
+    private func refreshProfileDetails(for user: Supabase.User) async {
+        do {
+            let response: PostgrestResponse<ProfileDetails> = try await supabase
+                .from("profiles")
+                .select("name, avatar_url")
+                .eq("id", value: user.id.uuidString)
+                .single()
+                .execute()
+            let resolvedName = response.value.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedAvatar = response.value.avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+            updateCurrentUser(name: resolvedName.isEmpty ? nil : resolvedName,
+                              avatarURL: resolvedAvatar?.isEmpty == false ? resolvedAvatar : nil,
+                              fallbackEmail: user.email)
+        } catch {
+            // Non-fatal: keep local name if profile fetch fails.
+        }
+    }
+    
+    private func updateCurrentUser(name: String? = nil, avatarURL: String? = nil, fallbackEmail: String?) {
+        let resolvedEmail = currentUser?.email ?? fallbackEmail ?? ""
+        let resolvedId = currentUser?.id ?? supabase.auth.currentUser?.id.uuidString ?? ""
+        guard !resolvedId.isEmpty else { return }
+        let resolvedName = name ?? currentUser?.name ?? "User"
+        let resolvedAvatar = avatarURL ?? currentUser?.avatarURL
+        currentUser = AppUser(id: resolvedId, email: resolvedEmail, name: resolvedName, avatarURL: resolvedAvatar)
+    }
+    
+    func updateProfileName(_ name: String) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AuthError.invalidName
+        }
+        let user = try await requireAuthenticatedUser()
+        
+        _ = try await supabase.auth.update(
+            user: UserAttributes(data: ["name": .string(trimmed)])
+        )
+        
+        try await supabase
+            .from("profiles")
+            .update(["name": trimmed])
+            .eq("id", value: user.id.uuidString)
+            .execute()
+        
+        updateCurrentUser(name: trimmed, avatarURL: nil, fallbackEmail: user.email)
+        await refreshProfileDetails(for: user)
+    }
+    
+    func updateProfileAvatar(_ image: UIImage) async throws {
+        let user = try await requireAuthenticatedUser()
+        let resized = ImageUtils.resizeImage(image, maxDimension: 512) ?? image
+        guard let data = ImageUtils.compressToJPEG(resized, quality: 0.85) else {
+            throw AuthError.invalidImage
+        }
+        
+        let path = "\(user.id.uuidString)/avatar.jpg"
+        let options = FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+        _ = try await supabase.storage
+            .from("avatars")
+            .upload(path, data: data, options: options)
+        
+        let publicURL = try supabase.storage
+            .from("avatars")
+            .getPublicURL(path: path)
+        
+        try await supabase
+            .from("profiles")
+            .update(["avatar_url": publicURL.absoluteString])
+            .eq("id", value: user.id.uuidString)
+            .execute()
+        
+        updateCurrentUser(name: nil, avatarURL: publicURL.absoluteString, fallbackEmail: user.email)
+        await refreshProfileDetails(for: user)
+    }
+    
+    func updatePassword(oldPassword: String, newPassword: String) async throws {
+        let trimmedOld = oldPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNew = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOld.isEmpty else {
+            throw AuthError.invalidCredentials
+        }
+        guard trimmedNew.count >= 8 else {
+            throw AuthError.invalidPassword
+        }
+        
+        let user = try await requireAuthenticatedUser()
+        if let email = user.email, !email.isEmpty {
+            _ = try await supabase.auth.signIn(email: email, password: trimmedOld)
+        } else if let phone = user.phone, !phone.isEmpty {
+            _ = try await supabase.auth.signIn(phone: phone, password: trimmedOld)
+        } else {
+            throw AuthError.invalidCredentials
+        }
+        
+        _ = try await supabase.auth.update(user: UserAttributes(password: trimmedNew))
+    }
+
+    private func requireAuthenticatedUser() async throws -> Supabase.User {
+        do {
+            let session = try await supabase.auth.session
+            updateFromSession(session)
+            return session.user
+        } catch {
+            if let user = supabase.auth.currentUser {
+                return user
+            }
+            throw AuthError.invalidCredentials
+        }
+    }
 }
 
 private struct ProfileCheck: Decodable {
     let id: String
+}
+
+private struct ProfileDetails: Decodable {
+    let name: String
+    let avatarURL: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case avatarURL = "avatar_url"
+    }
 }
 
 private struct ProfilePayload: Encodable {
@@ -227,26 +361,49 @@ private struct ProfilePayload: Encodable {
     let email: String?
     let phone: String?
     let name: String
+    let avatarURL: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case email
+        case phone
+        case name
+        case avatarURL = "avatar_url"
+    }
 }
 
 struct AppUser: Codable {
     let id: String
     let email: String
     let name: String
+    let avatarURL: String?
     
     init(from user: Supabase.User) {
         self.id = String(describing: user.id)
         self.email = user.email ?? ""
-        if let emailName = user.email?.components(separatedBy: "@").first, !emailName.isEmpty {
+        if let metadataName = user.userMetadata["name"]?.stringValue, !metadataName.isEmpty {
+            self.name = metadataName
+        } else if let emailName = user.email?.components(separatedBy: "@").first, !emailName.isEmpty {
             self.name = emailName.capitalized
         } else {
             self.name = "User"
         }
+        self.avatarURL = nil
+    }
+    
+    init(id: String, email: String, name: String, avatarURL: String?) {
+        self.id = id
+        self.email = email
+        self.name = name
+        self.avatarURL = avatarURL
     }
 }
 
 enum AuthError: LocalizedError {
     case invalidCredentials
+    case invalidName
+    case invalidImage
+    case invalidPassword
     case invalidPhone
     case invalidOTP
     case oauthFailed
@@ -258,6 +415,12 @@ enum AuthError: LocalizedError {
         switch self {
         case .invalidCredentials:
             return "Invalid email or password"
+        case .invalidName:
+            return "Name can't be empty"
+        case .invalidImage:
+            return "Invalid image selected"
+        case .invalidPassword:
+            return "Password must be at least 8 characters"
         case .invalidPhone:
             return "Enter a valid phone number"
         case .invalidOTP:
