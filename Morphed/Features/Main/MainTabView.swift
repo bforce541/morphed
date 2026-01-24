@@ -27,6 +27,12 @@ struct MainTabView: View {
         }
         .accentColor(.primaryAccent)
         .environmentObject(router)
+        .sheet(isPresented: $router.showSettings) {
+            SettingsView()
+        }
+        .sheet(isPresented: $router.showPaywall) {
+            PaywallView()
+        }
         .onAppear {
             // Customize tab bar appearance
             let appearance = UITabBarAppearance()
@@ -54,4 +60,3 @@ struct MainTabView: View {
         }
     }
 }
-

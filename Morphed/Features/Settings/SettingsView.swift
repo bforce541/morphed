@@ -8,7 +8,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
-    @StateObject private var router = AppRouter.shared
+    @EnvironmentObject private var router: AppRouter
     @State private var showLogoutAlert = false
     @State private var showShareSheet = false
     @State private var showTerms = false
@@ -140,9 +140,6 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.textPrimary)
                 }
-            }
-            .sheet(isPresented: $router.showPaywall) {
-                PaywallView()
             }
             .sheet(isPresented: $showShareSheet) {
                 ShareSheet(activityItems: router.shareReferralLink())

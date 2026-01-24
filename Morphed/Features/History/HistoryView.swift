@@ -7,6 +7,10 @@ struct HistoryView: View {
     @StateObject private var viewModel = HistoryViewModel()
     @StateObject private var router = AppRouter.shared
     @State private var selectedImage: HistoryItem?
+    @State private var isSelecting = false
+    @State private var selectedIds = Set<String>()
+    @State private var showDeleteConfirm = false
+    @State private var showShareSheet = false
     
     var body: some View {
         NavigationView {
@@ -20,20 +24,64 @@ struct HistoryView: View {
                         router.navigateToEditor()
                     })
                 } else {
-                    ScrollView {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 2),
-                            GridItem(.flexible(), spacing: 2),
-                            GridItem(.flexible(), spacing: 2)
-                        ], spacing: 2) {
-                            ForEach(viewModel.items) { item in
-                                HistoryItemCard(item: item) {
-                                    Haptics.impact(style: .light)
-                                    selectedImage = item
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        ScrollView {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), spacing: 0),
+                                GridItem(.flexible(), spacing: 0),
+                                GridItem(.flexible(), spacing: 0)
+                            ], spacing: 0) {
+                                ForEach(viewModel.items) { item in
+                                    HistoryItemCard(
+                                        item: item,
+                                        isSelecting: isSelecting,
+                                        isSelected: selectedIds.contains(item.id)
+                                    ) {
+                                        if isSelecting {
+                                            toggleSelection(for: item.id)
+                                        } else {
+                                            Haptics.impact(style: .light)
+                                            selectedImage = item
+                                        }
+                                    }
                                 }
                             }
+                            .padding(1)
                         }
-                        .padding(2)
+                    }
+                    .overlay(alignment: .bottom) {
+                        if isSelecting {
+                            HStack {
+                                Button(action: {
+                                    if !selectedIds.isEmpty {
+                                        showShareSheet = true
+                                    }
+                                }) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundColor(selectedIds.isEmpty ? .textSecondary : .primaryAccent)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .disabled(selectedIds.isEmpty)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    if !selectedIds.isEmpty {
+                                        showDeleteConfirm = true
+                                    }
+                                }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundColor(selectedIds.isEmpty ? .textSecondary : .primaryAccent)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .disabled(selectedIds.isEmpty)
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.lg)
+                            .padding(.vertical, DesignSystem.Spacing.sm)
+                            .background(Color.backgroundBottom.opacity(0.98))
+                        }
                     }
                 }
             }
@@ -49,10 +97,17 @@ struct HistoryView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !viewModel.items.isEmpty {
                         Button(action: {
-                            Haptics.impact(style: .medium)
-                            viewModel.clearHistory()
+                            if isSelecting {
+                                Haptics.impact(style: .light)
+                                isSelecting = false
+                                selectedIds.removeAll()
+                            } else {
+                                Haptics.impact(style: .light)
+                                isSelecting = true
+                                selectedIds.removeAll()
+                            }
                         }) {
-                            Text("Clear")
+                            Text(isSelecting ? "Cancel" : "Select")
                                 .font(.system(.body, design: .default, weight: .medium))
                                 .foregroundColor(.primaryAccent)
                         }
@@ -62,7 +117,46 @@ struct HistoryView: View {
             .sheet(item: $selectedImage) { item in
                 ImageDetailView(item: item)
             }
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(activityItems: selectedImagesForShare())
+            }
+            .alert("Delete selected photos?", isPresented: $showDeleteConfirm) {
+                Button("Cancel", role: .cancel) { }
+                Button("OK", role: .destructive) {
+                    Haptics.impact(style: .medium)
+                    viewModel.deleteItems(withIDs: selectedIds)
+                    selectedIds.removeAll()
+                    isSelecting = false
+                }
+            } message: {
+                Text("This action cannot be undone.")
+            }
         }
+        .onChange(of: viewModel.items.count) { newCount in
+            if newCount == 0 {
+                isSelecting = false
+                selectedIds.removeAll()
+            } else {
+                selectedIds = selectedIds.filter { id in
+                    viewModel.items.contains(where: { $0.id == id })
+                }
+            }
+        }
+    }
+
+    private func toggleSelection(for id: String) {
+        if selectedIds.contains(id) {
+            selectedIds.remove(id)
+        } else {
+            selectedIds.insert(id)
+        }
+        Haptics.impact(style: .light)
+    }
+    
+    private func selectedImagesForShare() -> [UIImage] {
+        viewModel.items
+            .filter { selectedIds.contains($0.id) }
+            .compactMap { $0.editedImage }
     }
 }
 
@@ -116,23 +210,39 @@ struct EmptyHistoryView: View {
 
 struct HistoryItemCard: View {
     let item: HistoryItem
+    let isSelecting: Bool
+    let isSelected: Bool
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
-            Group {
-                if let image = item.editedImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fill)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color.cardBackground)
-                        .aspectRatio(1, contentMode: .fit)
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image = item.editedImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(1, contentMode: .fill)
+                            .clipped()
+                    } else {
+                        Rectangle()
+                            .fill(Color.cardBackground)
+                            .aspectRatio(1, contentMode: .fit)
+                    }
+                }
+                
+                if isSelecting {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(isSelected ? .primaryAccent : .white)
+                        .padding(6)
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                 }
             }
         }
+        .overlay(
+            Rectangle()
+                .stroke(Color.white, lineWidth: 1)
+        )
         .buttonStyle(PlainButtonStyle())
     }
 }
@@ -140,9 +250,11 @@ struct HistoryItemCard: View {
 @MainActor
 class HistoryViewModel: ObservableObject {
     @Published var items: [HistoryItem] = []
+    private var cancellables = Set<AnyCancellable>()
     
     init() {
         loadHistory()
+        startListeningForUpdates()
     }
     
     func addItem(_ item: HistoryItem) {
@@ -152,6 +264,12 @@ class HistoryViewModel: ObservableObject {
     
     func clearHistory() {
         items.removeAll()
+        saveHistory()
+    }
+    
+    func deleteItems(withIDs ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        items.removeAll { ids.contains($0.id) }
         saveHistory()
     }
     
@@ -166,6 +284,15 @@ class HistoryViewModel: ObservableObject {
         if let encoded = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(encoded, forKey: "morphed_history")
         }
+    }
+
+    private func startListeningForUpdates() {
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.loadHistory()
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -223,7 +350,14 @@ struct ImageDetailView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(maxHeight: 500)
                             .padding(DesignSystem.Spacing.md)
+                            .padding(.top, DesignSystem.Spacing.xs)
                     }
+                    
+                    // Mode bubble (below image, keep layout stable)
+                    ModePill(mode: item.mode)
+                        .opacity(showingOriginal ? 0 : 1)
+                        .frame(height: 24)
+                        .padding(.top, -DesignSystem.Spacing.xl * 2)
                     
                     Spacer()
                     
@@ -253,9 +387,13 @@ struct ImageDetailView: View {
                     .padding(.bottom, DesignSystem.Spacing.md)
                 }
             }
-            .navigationTitle("Image Detail")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Image Detail")
+                        .font(.system(.headline, design: .default, weight: .semibold))
+                        .foregroundColor(.white)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -268,6 +406,16 @@ struct ImageDetailView: View {
                     ShareSheet(activityItems: [image])
                 }
             }
+        }
+        .onAppear {
+            let normalAttributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: UIColor.white
+            ]
+            let selectedAttributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: UIColor(Color.midnightNavy)
+            ]
+            UISegmentedControl.appearance().setTitleTextAttributes(normalAttributes, for: .normal)
+            UISegmentedControl.appearance().setTitleTextAttributes(selectedAttributes, for: .selected)
         }
     }
 }

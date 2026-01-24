@@ -6,7 +6,7 @@ import UIKit
 struct ProfileView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
-    @StateObject private var router = AppRouter.shared
+    @EnvironmentObject private var router: AppRouter
     @State private var isEditingName = false
     @State private var nameDraft = ""
     @State private var isSavingName = false
@@ -285,12 +285,6 @@ struct ProfileView: View {
                             .foregroundColor(.textSecondary)
                     }
                 }
-            }
-            .sheet(isPresented: $router.showPaywall) {
-                PaywallView()
-            }
-            .sheet(isPresented: $router.showSettings) {
-                SettingsView()
             }
             .sheet(isPresented: $showAvatarPicker) {
                 ImagePicker(selectedImage: $avatarDraft)

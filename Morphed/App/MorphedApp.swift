@@ -23,6 +23,7 @@ struct MorphedApp: App {
 
 struct RootView: View {
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var router: AppRouter
     @State private var showOnboarding = false
     
     private var hasSeenOnboarding: Bool {
@@ -46,5 +47,10 @@ struct RootView: View {
         }
         .animation(DesignSystem.Animation.standard, value: authManager.isAuthenticated)
         .animation(DesignSystem.Animation.standard, value: showOnboarding)
+        .onChange(of: authManager.isAuthenticated) { isAuthenticated in
+            if isAuthenticated {
+                router.navigateToEditor()
+            }
+        }
     }
 }

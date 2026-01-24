@@ -5,7 +5,7 @@ import PhotosUI
 
 struct EditorView: View {
     @StateObject private var viewModel = EditorViewModel()
-    @StateObject private var router = AppRouter.shared
+    @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     
     private var isFree: Bool {
@@ -194,12 +194,6 @@ struct EditorView: View {
                     onDismiss: { viewModel.showImagePicker = false }
                 )
             }
-            .sheet(isPresented: $router.showSettings) {
-                SettingsView()
-            }
-            .sheet(isPresented: $router.showPaywall) {
-                PaywallView()
-            }
             .fullScreenCover(isPresented: Binding(
                 get: { viewModel.hasGeneratedPreview && viewModel.editedImage != nil },
                 set: { if !$0 { viewModel.hasGeneratedPreview = false } }
@@ -271,14 +265,12 @@ struct ModeSelector: View {
         LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.sm) {
             ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
                 Button(action: {
+                    withAnimation(DesignSystem.Animation.standard) {
+                        selectedMode = mode
+                    }
+                    Haptics.impact(style: .light)
                     if SubscriptionManager.shared.shouldGateMode(mode) {
                         onRequireUpgrade?()
-                        return
-                    } else {
-                        withAnimation(DesignSystem.Animation.standard) {
-                            selectedMode = mode
-                        }
-                        Haptics.impact(style: .light)
                     }
                 }) {
                     HStack(spacing: DesignSystem.Spacing.xs) {
