@@ -14,6 +14,9 @@ struct MorphedApp: App {
                 .environmentObject(authManager)
                 .environmentObject(subscriptionManager)
                 .environmentObject(router)
+                .onOpenURL { url in
+                    StripePaymentHandler.shared.handleDeepLink(url: url)
+                }
         }
     }
 }

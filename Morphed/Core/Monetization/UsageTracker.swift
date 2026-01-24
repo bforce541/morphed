@@ -4,13 +4,15 @@ import Foundation
 
 /// Local usage tracking, with optional backend sync (stubbed).
 enum UsageTracker {
-    private static let storageKey = "morphed_usage_stats_v1"
+    private static let storageKey = "morphed_usage_stats_v2"
     
     struct Stats: Codable {
         var totalMorphs: Int = 0
         var hdExports: Int = 0
-        var maxModeUses: Int = 0
-        var cleanModeUses: Int = 0
+        var presenceUses: Int = 0
+        var physiqueUses: Int = 0
+        var faceUses: Int = 0
+        var styleUses: Int = 0
     }
     
     static func load() -> Stats {
@@ -21,16 +23,17 @@ enum UsageTracker {
         return Stats()
     }
     
-    static func recordMorph(isMax: Bool) {
+    static func recordMorph(mode: EditorViewModel.EditMode) {
         var stats = load()
         stats.totalMorphs += 1
-        if isMax {
-            stats.maxModeUses += 1
-        } else {
-            stats.cleanModeUses += 1
+        switch mode {
+        case .presence: stats.presenceUses += 1
+        case .physique: stats.physiqueUses += 1
+        case .face: stats.faceUses += 1
+        case .style: stats.styleUses += 1
         }
         persist(stats)
-        AnalyticsTracker.track("morph_completed", properties: ["isMax": isMax])
+        AnalyticsTracker.track("morph_completed", properties: ["mode": mode.rawValue])
     }
     
     static func recordHDExport() {

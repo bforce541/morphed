@@ -5,6 +5,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { editImageWithGemini } from "./geminiClient.js";
 import { validateEditRequest } from "./validate.js";
+import { createCheckoutSession, verifyWebhookSignature } from "./stripeClient.js";
 
 dotenv.config();
 
@@ -13,6 +14,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+// Stripe webhook endpoint needs raw body for signature verification
+app.use("/stripe/webhook", express.raw({ type: "application/json" }));
 
 app.use((req, res, next) => {
     const requestId = Math.random().toString(36).substring(7);
@@ -135,6 +139,114 @@ app.get("/entitlements", (req, res) => {
         canExportHD: false,
         remainingPremiumRenders: 0
     });
+});
+
+// Stripe Checkout Session Creation
+app.post("/stripe/create-checkout-session", async (req, res) => {
+    const { requestId } = req;
+    
+    try {
+        const { priceId, userId } = req.body;
+        
+        if (!priceId) {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "priceId is required"
+                }
+            });
+        }
+        
+        if (!userId) {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "userId is required"
+                }
+            });
+        }
+        
+        // Validate price IDs
+        const validPriceIds = [
+            process.env.STRIPE_PRICE_ID_PRO,
+            process.env.STRIPE_PRICE_ID_PREMIUM
+        ];
+        
+        if (!validPriceIds.includes(priceId)) {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "Invalid priceId"
+                }
+            });
+        }
+        
+        // Deep link URLs for iOS app
+        const successUrl = "morphed://stripe-success?session_id={CHECKOUT_SESSION_ID}";
+        const cancelUrl = "morphed://stripe-cancel";
+        
+        console.log(`[${requestId}] Creating checkout session for priceId=${priceId}, userId=${userId}`);
+        
+        const session = await createCheckoutSession(priceId, userId, successUrl, cancelUrl);
+        
+        res.json({
+            url: session.url
+        });
+    } catch (error) {
+        console.error(`[${requestId}] Error creating checkout session:`, error);
+        res.status(500).json({
+            error: {
+                code: "INTERNAL",
+                message: error.message || "Failed to create checkout session"
+            }
+        });
+    }
+});
+
+// Stripe Webhook Handler
+app.post("/stripe/webhook", async (req, res) => {
+    const { requestId } = req;
+    const sig = req.headers["stripe-signature"];
+    
+    try {
+        if (!sig) {
+            return res.status(400).json({ error: "Missing stripe-signature header" });
+        }
+        
+        const event = verifyWebhookSignature(req.body, sig);
+        
+        console.log(`[${requestId}] Webhook received: ${event.type}`);
+        
+        // Handle subscription events
+        switch (event.type) {
+            case "checkout.session.completed":
+                const session = event.data.object;
+                console.log(`[${requestId}] Checkout completed for session: ${session.id}`);
+                // Here you would update your database with the subscription
+                break;
+                
+            case "customer.subscription.created":
+            case "customer.subscription.updated":
+                const subscription = event.data.object;
+                console.log(`[${requestId}] Subscription ${event.type}: ${subscription.id}`);
+                // Update subscription status in your database
+                break;
+                
+            case "customer.subscription.deleted":
+                const deletedSubscription = event.data.object;
+                console.log(`[${requestId}] Subscription cancelled: ${deletedSubscription.id}`);
+                // Update subscription status in your database
+                break;
+                
+            default:
+                console.log(`[${requestId}] Unhandled event type: ${event.type}`);
+        }
+        
+        res.json({ received: true });
+    } catch (error) {
+        console.error(`[${requestId}] Webhook error:`, error.message);
+        res.status(400).json({ error: `Webhook Error: ${error.message}` });
+    }
 });
 
 app.get("/health", (req, res) => {

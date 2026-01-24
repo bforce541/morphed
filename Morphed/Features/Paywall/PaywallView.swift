@@ -5,9 +5,12 @@ import SwiftUI
 struct PaywallView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @StateObject private var authManager = AuthManager.shared
     
     @State private var selectedPlan: PricingPlanID = .weekly
     @State private var isProcessing = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationView {
@@ -20,7 +23,7 @@ struct PaywallView: View {
                         // Header
                         header
                         
-                        // Pricing Cards (Weekly first, then Pro, then Free)
+                        // Pricing Cards (Pro first, then Premium, then Free)
                         pricingCards
                         
                         // CTA Button
@@ -39,6 +42,11 @@ struct PaywallView: View {
                     .foregroundColor(.textPrimary)
                 }
             }
+            .alert("Checkout Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
@@ -49,7 +57,7 @@ struct PaywallView: View {
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
             
-            Text("HD results · No watermark · MAX mode")
+            Text("HD results · No watermark · Presence, Physique, Face & Style modes")
                 .font(.system(.subheadline, design: .default))
                 .foregroundColor(.textSecondary)
                 .multilineTextAlignment(.center)
@@ -60,7 +68,7 @@ struct PaywallView: View {
     
     private var pricingCards: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            // Weekly Boost - Dominant
+            // Pro - Dominant
             if let weekly = PricingModels.all.first(where: { $0.id == .weekly }) {
                 PricingCard(
                     plan: weekly,
@@ -75,7 +83,7 @@ struct PaywallView: View {
                 }
             }
             
-            // Pro Creator - Neutral
+            // Premium - Neutral
             if let pro = PricingModels.all.first(where: { $0.id == .monthlyPro }) {
                 PricingCard(
                     plan: pro,
@@ -129,11 +137,6 @@ struct PaywallView: View {
                     .padding(.horizontal, DesignSystem.Spacing.xl)
             }
             
-            Text("No real payments yet – this is a mocked purchase for development.")
-                .font(.system(.caption, design: .default))
-                .foregroundColor(.textSecondary.opacity(0.6))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DesignSystem.Spacing.xl)
         }
         .padding(.top, DesignSystem.Spacing.md)
     }
@@ -143,9 +146,9 @@ struct PaywallView: View {
         case .free:
             return "Continue with Preview"
         case .weekly:
-            return "Unlock Weekly Boost"
+            return "Unlock Pro"
         case .monthlyPro:
-            return "Upgrade to Pro Creator"
+            return "Upgrade to Premium"
         }
     }
     
@@ -156,26 +159,36 @@ struct PaywallView: View {
         isProcessing = true
         
         Task {
-            // Simulate purchase processing
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-            
             switch selectedPlan {
             case .free:
                 AnalyticsTracker.track("paywall_continue_free", properties: nil)
                 isProcessing = false
                 dismiss()
-            case .weekly:
-                subscriptionManager.purchaseWeeklyMock()
-                AnalyticsTracker.track("purchase_weekly_mock", properties: nil)
-                Haptics.notification(type: .success)
-                isProcessing = false
-                dismiss()
-            case .monthlyPro:
-                subscriptionManager.purchaseMonthlyProMock()
-                AnalyticsTracker.track("purchase_monthly_mock", properties: nil)
-                Haptics.notification(type: .success)
-                isProcessing = false
-                dismiss()
+                
+            case .weekly, .monthlyPro:
+                let userId = authManager.currentUser?.email ?? 
+                            authManager.currentUser?.id ?? 
+                            "anonymous"
+                
+                await StripePaymentHandler.shared.presentCheckout(
+                    for: selectedPlan,
+                    userId: userId,
+                    onSuccess: {
+                        let tier: SubscriptionTier = selectedPlan == .weekly ? .weekly : .monthlyPro
+                        subscriptionManager.updateSubscriptionTier(tier)
+                        AnalyticsTracker.track("purchase_\(selectedPlan == .weekly ? "pro" : "premium")", properties: nil)
+                        Haptics.notification(type: .success)
+                        isProcessing = false
+                        dismiss()
+                    },
+                    onFailure: { error in
+                        print("Stripe checkout failed: \(error.localizedDescription)")
+                        errorMessage = error.localizedDescription
+                        showError = true
+                        Haptics.notification(type: .error)
+                        isProcessing = false
+                    }
+                )
             }
         }
     }

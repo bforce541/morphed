@@ -22,14 +22,82 @@ class EditorViewModel: ObservableObject {
     @Published var isPreviewBlurred = false
     
     enum EditMode: String, CaseIterable, Codable {
-        case max = "max"
-        case clean = "clean"
+        case presence = "presence"
+        case physique = "physique"
+        case face = "face"
+        case style = "style"
         
         var displayName: String {
             switch self {
-            case .max: return "MAX"
-            case .clean: return "CLEAN"
+            case .presence: return "Presence"
+            case .physique: return "Physique"
+            case .face: return "Face"
+            case .style: return "Style"
             }
+        }
+        
+        var shortDescription: String {
+            switch self {
+            case .presence: return "Optimized posture, proportions, and framing"
+            case .physique: return "Visual definition through lighting, shadows, and fit"
+            case .face: return "Structure & clarity enhancement"
+            case .style: return "Outfit sharpness & silhouette"
+            }
+        }
+        
+        var bulletPoints: [String] {
+            switch self {
+            case .presence: return [
+                "Upright posture",
+                "Camera angle correction",
+                "Shoulder framing",
+                "Subtle vertical elongation (optical, not literal)"
+            ]
+            case .physique: return [
+                "V-taper emphasis",
+                "Chest/shoulder lighting",
+                "Shirt tightening (wrinkles → structure)",
+                "No fake muscles"
+            ]
+            case .face: return [
+                "Jaw/cheekbone definition",
+                "Eye clarity",
+                "Skin texture polish"
+            ]
+            case .style: return [
+                "Better drape",
+                "Cleaner lines",
+                "Contrast + texture pop"
+            ]
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .presence: return "figure.stand"
+            case .physique: return "dumbbell"
+            case .face: return "face.smiling"
+            case .style: return "tshirt"
+            }
+        }
+        
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            let s = try c.decode(String.self)
+            switch s {
+            case "presence": self = .presence
+            case "physique": self = .physique
+            case "face": self = .face
+            case "style": self = .style
+            case "max": self = .presence
+            case "clean": self = .style
+            default: self = .presence
+            }
+        }
+        
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.singleValueContainer()
+            try c.encode(rawValue)
         }
     }
     
@@ -65,8 +133,8 @@ class EditorViewModel: ObservableObject {
         didSaveToHistory = false
         
         // Record usage
-        UsageTracker.recordMorph(isMax: selectedMode == .max)
-        SubscriptionManager.shared.recordMorph(isPremium: selectedMode == .max)
+        UsageTracker.recordMorph(mode: selectedMode)
+        SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence)
         
         Haptics.notification(type: .success)
         isLoading = false
@@ -130,8 +198,8 @@ class EditorViewModel: ObservableObject {
             showToast(message: "Image morphed successfully!")
             
             // Record usage and monetization events
-            UsageTracker.recordMorph(isMax: selectedMode == .max)
-            SubscriptionManager.shared.recordMorph(isPremium: selectedMode == .max)
+            UsageTracker.recordMorph(mode: selectedMode)
+            SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence)
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -143,9 +211,7 @@ class EditorViewModel: ObservableObject {
     
     // MARK: - Helper Methods
     
-    private func previewBlurRadius(for mode: EditMode) -> CGFloat {
-        mode == .clean ? 11 : 9
-    }
+    private func previewBlurRadius(for mode: EditMode) -> CGFloat { 9 }
     
     private func applyBlur(to image: UIImage, radius: CGFloat) -> UIImage? {
         guard let ciImage = CIImage(image: image) else { return nil }

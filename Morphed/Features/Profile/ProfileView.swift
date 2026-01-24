@@ -241,7 +241,7 @@ struct ProfileView: View {
                                     Image(systemName: "lock.fill")
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundColor(.textSecondary)
-                                    Text("HD & MAX mode locked")
+                                    Text("HD & Physique, Face, Style locked")
                                         .font(.system(.caption, design: .default))
                                         .foregroundColor(.textSecondary)
                                 }

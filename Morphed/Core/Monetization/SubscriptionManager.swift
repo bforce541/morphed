@@ -29,18 +29,16 @@ struct SubscriptionState: Codable {
 
 /// Simple feature flags derived from the current subscription state.
 struct Entitlements {
-    let canUseMaxMode: Bool
-    let canUseCleanMode: Bool
+    let canUseAllUpgradeModes: Bool
     let canRemoveWatermark: Bool
     let canExportHD: Bool
     let hasUnlimitedRenders: Bool
     let remainingPremiumRenders: Int
     
-    /// Free tier: 1 preview, CLEAN only, watermarked, no HD.
+    /// Free tier: 1 preview, Presence only, watermarked, no HD.
     static func free(remainingPremiumRenders: Int) -> Entitlements {
         Entitlements(
-            canUseMaxMode: false,
-            canUseCleanMode: true,
+            canUseAllUpgradeModes: false,
             canRemoveWatermark: false,
             canExportHD: false,
             hasUnlimitedRenders: false,
@@ -83,8 +81,7 @@ final class SubscriptionManager: ObservableObject {
             return .free(remainingPremiumRenders: state.remainingPremiumRenders)
         case .weekly:
             return Entitlements(
-                canUseMaxMode: true,
-                canUseCleanMode: true,
+                canUseAllUpgradeModes: true,
                 canRemoveWatermark: true,
                 canExportHD: true,
                 hasUnlimitedRenders: true,
@@ -92,8 +89,7 @@ final class SubscriptionManager: ObservableObject {
             )
         case .monthlyPro:
             return Entitlements(
-                canUseMaxMode: true,
-                canUseCleanMode: true,
+                canUseAllUpgradeModes: true,
                 canRemoveWatermark: true,
                 canExportHD: true,
                 hasUnlimitedRenders: true,
@@ -131,9 +127,10 @@ final class SubscriptionManager: ObservableObject {
         persist()
     }
     
-    /// Whether selecting MAX mode should be gated behind the paywall.
-    func shouldGateMaxMode() -> Bool {
-        !entitlements.canUseMaxMode
+    /// Whether selecting the given mode should be gated (free: Presence only; premium: all 4).
+    func shouldGateMode(_ mode: EditorViewModel.EditMode) -> Bool {
+        if mode == .presence { return false }
+        return !entitlements.canUseAllUpgradeModes
     }
     
     /// Whether saving / exporting should be HD-gated.
@@ -151,7 +148,7 @@ final class SubscriptionManager: ObservableObject {
         shouldPresentPaywall = false
     }
     
-    // MARK: - Mock purchases
+    // MARK: - Purchases
     
     func purchaseWeeklyMock() {
         state.tier = .weekly
@@ -162,6 +159,14 @@ final class SubscriptionManager: ObservableObject {
     
     func purchaseMonthlyProMock() {
         state.tier = .monthlyPro
+        state.remainingPremiumRenders = .max
+        state.hasCompletedMockPurchase = true
+        persist()
+    }
+    
+    /// Update subscription tier after successful Stripe purchase
+    func updateSubscriptionTier(_ tier: SubscriptionTier) {
+        state.tier = tier
         state.remainingPremiumRenders = .max
         state.hasCompletedMockPurchase = true
         persist()

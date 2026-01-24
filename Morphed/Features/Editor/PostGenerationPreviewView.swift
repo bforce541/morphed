@@ -28,7 +28,7 @@ struct PostGenerationPreviewView: View {
     
     private var blurRadius: CGFloat {
         guard isFree else { return 0 }
-        return mode == .clean ? 11 : 9
+        return 9
     }
     
     var body: some View {

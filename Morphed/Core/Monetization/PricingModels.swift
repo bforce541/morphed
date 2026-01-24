@@ -30,7 +30,7 @@ enum PricingModels {
         isHighlighted: false,
         bulletPoints: [
             "Low-res preview render",
-            "CLEAN mode only",
+            "Presence mode only",
             "Watermark",
             "Standard queue"
         ],
@@ -40,14 +40,14 @@ enum PricingModels {
     
     static let weekly = PricingPlan(
         id: .weekly,
-        title: "Weekly Boost",
+        title: "Pro",
         subtitle: "Unlimited HD morphs",
         priceText: "$9.99 / week",
         badgeText: "MOST POPULAR",
         isHighlighted: true,
         bulletPoints: [
             "Unlimited HD morphs",
-            "MAX + CLEAN modes",
+            "All 4 upgrade modes (Presence, Physique, Face, Style)",
             "No watermark",
             "Priority queue"
         ],
@@ -57,13 +57,13 @@ enum PricingModels {
     
     static let monthlyPro = PricingPlan(
         id: .monthlyPro,
-        title: "Pro Creator",
+        title: "Premium",
         subtitle: "For creators & power users",
         priceText: "$29 / month",
         badgeText: nil,
         isHighlighted: false,
         bulletPoints: [
-            "Everything in Weekly Boost",
+            "Everything in Pro",
             "Creator presets (dating, social, brand)",
             "Higher generation limits"
         ],

@@ -164,8 +164,8 @@ struct OnboardingScreen2: View {
             
             // Bullet points
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                BulletPoint(text: "MAX mode for dating profiles", boldText: "MAX")
-                BulletPoint(text: "CLEAN mode for professional photos", boldText: "CLEAN")
+                BulletPoint(text: "Presence for posture & framing", boldText: "Presence")
+                BulletPoint(text: "Physique, Face & Style for definition", boldText: "Physique, Face & Style")
                 BulletPoint(text: "Studio-quality lighting & detail")
             }
             .padding(.horizontal, DesignSystem.Spacing.xl)
@@ -205,7 +205,7 @@ struct OnboardingScreen3: View {
                 .padding(.horizontal, DesignSystem.Spacing.xl)
             
             // Subtext
-            Text("Get a preview upgrade.\nUnlock HD & MAX mode anytime.")
+            Text("Get a preview upgrade.\nUnlock HD & all 4 modes anytime.")
                 .font(.system(.subheadline, design: .default))
                 .foregroundColor(.textSecondary)
                 .multilineTextAlignment(.center)

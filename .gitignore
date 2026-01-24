@@ -3,3 +3,6 @@ Morphed/Config/Secrets.xcconfig
 **/xcuserdata/
 supabase/.temp/
 Morphed.xcodeproj/project.xcworkspace/xcshareddata/
+
+# Backend environment files
+morphed-backend/.env

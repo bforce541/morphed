@@ -30,14 +30,14 @@ struct PostGenerationPaywallView: View {
                             .foregroundColor(.textPrimary)
                             .multilineTextAlignment(.center)
                         
-                        Text("Remove watermark · Unlock HD · MAX mode")
+                        Text("Remove watermark · Unlock HD · All 4 modes")
                             .font(.system(.subheadline, design: .default))
                             .foregroundColor(.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, DesignSystem.Spacing.xl)
                     
-                    // Pricing Cards (Simplified - just Weekly and Pro)
+                    // Pricing Cards (Simplified - just Pro and Premium)
                     VStack(spacing: DesignSystem.Spacing.md) {
                         if let weekly = PricingModels.all.first(where: { $0.id == .weekly }) {
                             PricingCard(
@@ -113,24 +113,28 @@ struct PostGenerationPaywallView: View {
         Haptics.impact(style: .medium)
         isProcessing = true
         
-        // Simulate purchase processing
         Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            let userId = AuthManager.shared.currentUser?.email ?? 
+                        AuthManager.shared.currentUser?.id ?? 
+                        "anonymous"
             
-            switch selectedPlan {
-            case .weekly:
-                subscriptionManager.purchaseWeeklyMock()
-                AnalyticsTracker.track("purchase_weekly_post_gen", properties: nil)
-            case .monthlyPro:
-                subscriptionManager.purchaseMonthlyProMock()
-                AnalyticsTracker.track("purchase_monthly_post_gen", properties: nil)
-            default:
-                break
-            }
-            
-            Haptics.notification(type: .success)
-            isProcessing = false
-            dismiss()
+            await StripePaymentHandler.shared.presentCheckout(
+                for: selectedPlan,
+                userId: userId,
+                onSuccess: {
+                    let tier: SubscriptionTier = selectedPlan == .weekly ? .weekly : .monthlyPro
+                    subscriptionManager.updateSubscriptionTier(tier)
+                    AnalyticsTracker.track("purchase_\(selectedPlan == .weekly ? "pro" : "premium")_post_gen", properties: nil)
+                    Haptics.notification(type: .success)
+                    isProcessing = false
+                    dismiss()
+                },
+                onFailure: { error in
+                    print("Stripe checkout failed: \(error.localizedDescription)")
+                    Haptics.notification(type: .error)
+                    isProcessing = false
+                }
+            )
         }
     }
 }

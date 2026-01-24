@@ -116,6 +116,7 @@
 				534D6D522F0992A90079135C /* MorphedUITests */,
 				09FBBED12F22FA0500C9ED19 /* Frameworks */,
 				534D6D392F0992A80079135C /* Products */,
+				5352F57F2F23DCAB00D1D3DB /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -127,6 +128,14 @@
 				534D6D4F2F0992A90079135C /* MorphedUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5352F57F2F23DCAB00D1D3DB /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60718293A4B5C /* App.xcconfig */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -444,6 +453,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7BHS73M2BF;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Morphed/Info.plist;
@@ -479,6 +489,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7BHS73M2BF;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Morphed/Info.plist;

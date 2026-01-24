@@ -185,8 +185,14 @@ struct EditorView: View {
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $viewModel.showImagePicker) {
-                ImagePicker(selectedImage: $viewModel.originalImage)
+            .sheet(isPresented: $viewModel.showImagePicker, onDismiss: { viewModel.showImagePicker = false }) {
+                ImagePicker(
+                    selectedImage: Binding(
+                        get: { viewModel.originalImage },
+                        set: { viewModel.originalImage = $0 }
+                    ),
+                    onDismiss: { viewModel.showImagePicker = false }
+                )
             }
             .sheet(isPresented: $router.showSettings) {
                 SettingsView()
@@ -231,6 +237,11 @@ struct EditorView: View {
                     viewModel.removeWatermark()
                 }
             }
+            .onChange(of: viewModel.originalImage) { newValue in
+                if newValue != nil && viewModel.selectedMode == nil {
+                    viewModel.selectedMode = .presence
+                }
+            }
         }
     }
 }
@@ -254,11 +265,13 @@ struct ModeSelector: View {
     var onRequireUpgrade: (() -> Void)?
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     
+    private let columns = [GridItem(.flexible(), spacing: DesignSystem.Spacing.sm), GridItem(.flexible(), spacing: DesignSystem.Spacing.sm)]
+    
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
+        LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.sm) {
             ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
                 Button(action: {
-                    if mode == .max && SubscriptionManager.shared.shouldGateMaxMode() {
+                    if SubscriptionManager.shared.shouldGateMode(mode) {
                         onRequireUpgrade?()
                         return
                     } else {
@@ -268,25 +281,29 @@ struct ModeSelector: View {
                         Haptics.impact(style: .light)
                     }
                 }) {
-                    Text(mode.displayName)
-                        .font(.system(.headline, design: .default, weight: .semibold))
-                        .foregroundColor(selectedMode == mode ? .midnightNavy : .textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            Group {
-                                if selectedMode == mode {
-                                    Color.primaryAccent
-                                } else {
-                                    Color.cardBackground
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                                                .stroke(Color.divider.opacity(0.3), lineWidth: 1)
-                                        )
-                                }
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: mode.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(mode.displayName)
+                            .font(.system(.subheadline, design: .default, weight: .semibold))
+                    }
+                    .foregroundColor(selectedMode == mode ? .midnightNavy : .textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        Group {
+                            if selectedMode == mode {
+                                Color.primaryAccent
+                            } else {
+                                Color.cardBackground
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                                            .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+                                    )
                             }
-                        )
-                        .cornerRadius(DesignSystem.CornerRadius.sm)
+                        }
+                    )
+                    .cornerRadius(DesignSystem.CornerRadius.sm)
                 }
             }
         }
@@ -363,6 +380,7 @@ struct ImageCard: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
                 }
                 
                 if isLoading {

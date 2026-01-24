@@ -56,5 +56,14 @@
 	<string>yoshua.morphed</string>
 	<key>SUPABASE_URL</key>
 	<string>https://fhjcxbqbpwpdwqhefrxm.supabase.co</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>morphed</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
