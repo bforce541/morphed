@@ -7,9 +7,14 @@ struct EditorView: View {
     @StateObject private var viewModel = EditorViewModel()
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @AppStorage("morphed_default_edit_mode") private var defaultEditModeRaw = EditorViewModel.EditMode.presence.rawValue
     
     private var isFree: Bool {
         subscriptionManager.state.tier == .free
+    }
+    
+    private var defaultEditMode: EditorViewModel.EditMode {
+        EditorViewModel.EditMode(rawValue: defaultEditModeRaw) ?? .presence
     }
     
     var body: some View {
@@ -233,7 +238,7 @@ struct EditorView: View {
             }
             .onChange(of: viewModel.originalImage) { newValue in
                 if newValue != nil && viewModel.selectedMode == nil {
-                    viewModel.selectedMode = .presence
+                    viewModel.selectedMode = defaultEditMode
                 }
             }
         }

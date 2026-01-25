@@ -327,6 +327,68 @@ final class AuthManager: ObservableObject {
         
         _ = try await supabase.auth.update(user: UserAttributes(password: trimmedNew))
     }
+    
+    // MARK: - Account Deletion
+    
+    func requestAccountDeletion() async throws {
+        let session = try await supabase.auth.session
+        let token = session.accessToken
+        
+        var request = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/request-delete-account"))
+        request.httpMethod = "POST"
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw AuthError.networkError
+        }
+
+        UserDefaults.standard.set(true, forKey: "pending_account_deletion")
+    }
+    
+    func handleAuthCallback(url: URL) async {
+        guard url.scheme == SupabaseConfig.redirectScheme else { return }
+        do {
+            _ = try await supabase.auth.session(from: url)
+            try await refreshSessionAndValidateProfile()
+        } catch {
+            return
+        }
+        
+        let isDeleteLink = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .contains(where: { $0.name == "delete_account" && $0.value == "true" }) ?? false
+        let pendingDelete = UserDefaults.standard.bool(forKey: "pending_account_deletion")
+        
+        guard pendingDelete, isDeleteLink else { return }
+        
+        do {
+            try await deleteAccount()
+            UserDefaults.standard.set(false, forKey: "pending_account_deletion")
+        } catch {
+            // Keep pending flag so user can retry by opening the link again
+        }
+    }
+
+    private func deleteAccount() async throws {
+        let session = try await supabase.auth.session
+        let token = session.accessToken
+        
+        var request = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/delete-account"))
+        request.httpMethod = "POST"
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw AuthError.networkError
+        }
+        
+        await logout()
+    }
 
     private func requireAuthenticatedUser() async throws -> Supabase.User {
         do {

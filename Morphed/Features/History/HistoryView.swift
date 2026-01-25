@@ -11,6 +11,12 @@ struct HistoryView: View {
     @State private var selectedIds = Set<String>()
     @State private var showDeleteConfirm = false
     @State private var showShareSheet = false
+    @State private var selectedFilter: EditorViewModel.EditMode? = nil
+
+    private var filteredItems: [HistoryItem] {
+        guard let selectedFilter else { return viewModel.items }
+        return viewModel.items.filter { $0.mode == selectedFilter }
+    }
     
     var body: some View {
         NavigationView {
@@ -25,28 +31,42 @@ struct HistoryView: View {
                     })
                 } else {
                     VStack(spacing: DesignSystem.Spacing.sm) {
+                        HistoryFilterBar(selectedFilter: $selectedFilter)
                         ScrollView {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 0),
-                                GridItem(.flexible(), spacing: 0),
-                                GridItem(.flexible(), spacing: 0)
-                            ], spacing: 0) {
-                                ForEach(viewModel.items) { item in
-                                    HistoryItemCard(
-                                        item: item,
-                                        isSelecting: isSelecting,
-                                        isSelected: selectedIds.contains(item.id)
-                                    ) {
-                                        if isSelecting {
-                                            toggleSelection(for: item.id)
-                                        } else {
-                                            Haptics.impact(style: .light)
-                                            selectedImage = item
+                            if filteredItems.isEmpty {
+                                VStack(spacing: DesignSystem.Spacing.sm) {
+                                    Text("No edits for this filter yet")
+                                        .font(.system(.headline, design: .default, weight: .semibold))
+                                        .foregroundColor(.textPrimary)
+                                    Text("Try a different edit type.")
+                                        .font(.system(.subheadline, design: .default, weight: .medium))
+                                        .foregroundColor(.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, DesignSystem.Spacing.xl)
+                            } else {
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 0),
+                                    GridItem(.flexible(), spacing: 0),
+                                    GridItem(.flexible(), spacing: 0)
+                                ], spacing: 0) {
+                                    ForEach(filteredItems) { item in
+                                        HistoryItemCard(
+                                            item: item,
+                                            isSelecting: isSelecting,
+                                            isSelected: selectedIds.contains(item.id)
+                                        ) {
+                                            if isSelecting {
+                                                toggleSelection(for: item.id)
+                                            } else {
+                                                Haptics.impact(style: .light)
+                                                selectedImage = item
+                                            }
                                         }
                                     }
                                 }
+                                .padding(1)
                             }
-                            .padding(1)
                         }
                     }
                     .overlay(alignment: .bottom) {
@@ -142,6 +162,12 @@ struct HistoryView: View {
                 }
             }
         }
+        .onChange(of: selectedFilter) { _ in
+            if isSelecting {
+                isSelecting = false
+                selectedIds.removeAll()
+            }
+        }
     }
 
     private func toggleSelection(for id: String) {
@@ -157,6 +183,57 @@ struct HistoryView: View {
         viewModel.items
             .filter { selectedIds.contains($0.id) }
             .compactMap { $0.editedImage }
+    }
+}
+
+struct HistoryFilterBar: View {
+    @Binding var selectedFilter: EditorViewModel.EditMode?
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Text(selectedFilter?.displayName ?? "All")
+                .font(.system(.subheadline, design: .default, weight: .semibold))
+                .foregroundColor(.midnightNavy)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.xs)
+                .background(
+                    Capsule()
+                        .fill(Color.primaryAccent)
+                )
+            
+            Menu {
+                filterOptions()
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.primaryAccent)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color.cardBackground)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.primaryAccent.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.top, DesignSystem.Spacing.md)
+    }
+    
+    @ViewBuilder
+    private func filterOptions() -> some View {
+        Button("All") {
+            Haptics.impact(style: .light)
+            selectedFilter = nil
+        }
+        ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
+            Button(mode.displayName) {
+                Haptics.impact(style: .light)
+                selectedFilter = mode
+            }
+        }
     }
 }
 

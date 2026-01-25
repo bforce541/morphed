@@ -3,6 +3,7 @@
 import SwiftUI
 import UIKit
 import SafariServices
+import StoreKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
@@ -10,13 +11,28 @@ struct SettingsView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject private var router: AppRouter
     @State private var showLogoutAlert = false
-    @State private var showShareSheet = false
     @State private var showTerms = false
     @State private var showPrivacy = false
-    @State private var showChangePassword = false
+    @State private var showLicenses = false
+    @State private var showWhatsNew = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var showDeleteAccountResult = false
+    @State private var deleteAccountResultMessage = ""
+    @AppStorage("morphed_auto_save_to_photos") private var autoSaveToPhotos = true
+    @AppStorage("morphed_default_edit_mode") private var defaultEditModeRaw = EditorViewModel.EditMode.presence.rawValue
     
     private var isPro: Bool {
         subscriptionManager.state.tier != .free
+    }
+
+    private var defaultEditMode: EditorViewModel.EditMode {
+        EditorViewModel.EditMode(rawValue: defaultEditModeRaw) ?? .presence
+    }
+    
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
     }
     
     var body: some View {
@@ -34,8 +50,8 @@ struct SettingsView: View {
                             
                             VStack(spacing: DesignSystem.Spacing.xs) {
                                 SettingsMenuItem(
-                                    icon: "crown.fill",
-                                    title: "Premium",
+                                    icon: "creditcard.fill",
+                                    title: "Manage Subscription",
                                     color: .primaryAccent,
                                     showBadge: isPro
                                 ) {
@@ -44,17 +60,48 @@ struct SettingsView: View {
                                 }
                                 
                                 SettingsMenuItem(
-                                    icon: "person.2.wave.2.fill",
-                                    title: "Invite Friends",
-                                    color: .textSecondary
+                                    icon: "trash.fill",
+                                    title: "Delete Account",
+                                    color: .red
                                 ) {
                                     Haptics.impact(style: .light)
-                                    showShareSheet = true
+                                    showDeleteAccountConfirm = true
                                 }
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
                         }
                         .padding(.top, DesignSystem.Spacing.md)
+                        
+                        // Preferences Section
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            SectionHeader("Preferences")
+                            
+                            VStack(spacing: DesignSystem.Spacing.xs) {
+                                SettingsToggleRow(
+                                    icon: "square.and.arrow.down",
+                                    title: "Auto Save to Photos",
+                                    color: .textSecondary,
+                                    isOn: $autoSaveToPhotos
+                                )
+                                
+                                Menu {
+                                    ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
+                                        Button(mode.displayName) {
+                                            Haptics.impact(style: .light)
+                                            defaultEditModeRaw = mode.rawValue
+                                        }
+                                    }
+                                } label: {
+                                    SettingsValueRow(
+                                        icon: "slider.horizontal.3",
+                                        title: "Default Edit Mode",
+                                        value: defaultEditMode.displayName,
+                                        color: .textSecondary
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                        }
                         
                         // Support Section
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -79,12 +126,30 @@ struct SettingsView: View {
                             
                             VStack(spacing: DesignSystem.Spacing.xs) {
                                 SettingsMenuItem(
-                                    icon: "lock.circle.fill",
-                                    title: "Change Password",
+                                    icon: "gearshape.fill",
+                                    title: "Permissions",
                                     color: .textSecondary
                                 ) {
                                     Haptics.impact(style: .light)
-                                    showChangePassword = true
+                                    openAppSettings()
+                                }
+                                
+                                SettingsMenuItem(
+                                    icon: "tray.and.arrow.down.fill",
+                                    title: "Data Export",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    openSupportEmail(subject: "Data Export Request")
+                                }
+                                
+                                SettingsMenuItem(
+                                    icon: "face.smiling.fill",
+                                    title: "Face & Body Data Usage",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showPrivacy = true
                                 }
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
@@ -111,6 +176,48 @@ struct SettingsView: View {
                                 ) {
                                     Haptics.impact(style: .light)
                                     showPrivacy = true
+                                }
+                                
+                                SettingsMenuItem(
+                                    icon: "doc.plaintext.fill",
+                                    title: "Licenses & Attributions",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showLicenses = true
+                                }
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                        }
+
+                        // About Section
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                            SectionHeader("About")
+                            
+                            VStack(spacing: DesignSystem.Spacing.xs) {
+                                SettingsInfoRow(
+                                    icon: "info.circle.fill",
+                                    title: "App Version",
+                                    value: appVersionText,
+                                    color: .textSecondary
+                                )
+                                
+                                SettingsMenuItem(
+                                    icon: "sparkles",
+                                    title: "What's New",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showWhatsNew = true
+                                }
+                                
+                                SettingsMenuItem(
+                                    icon: "star.fill",
+                                    title: "Rate Morphed",
+                                    color: .textSecondary
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    SKStoreReviewController.requestReview()
                                 }
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
@@ -141,18 +248,23 @@ struct SettingsView: View {
                     .foregroundColor(.textPrimary)
                 }
             }
-            .sheet(isPresented: $showShareSheet) {
-                ShareSheet(activityItems: router.shareReferralLink())
-            }
             .sheet(isPresented: $showTerms) {
                 SafariView(url: router.openTerms())
             }
             .sheet(isPresented: $showPrivacy) {
                 SafariView(url: router.openPrivacy())
             }
-            .sheet(isPresented: $showChangePassword) {
-                ChangePasswordView()
-                    .environmentObject(authManager)
+            .sheet(isPresented: $showLicenses) {
+                InfoSheetView(
+                    title: "Licenses & Attributions",
+                    message: "Open-source licenses and attributions will appear here."
+                )
+            }
+            .sheet(isPresented: $showWhatsNew) {
+                InfoSheetView(
+                    title: "What's New",
+                    message: "You're on version \(appVersionText)."
+                )
             }
             .alert("Log Out", isPresented: $showLogoutAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -164,7 +276,49 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
+            .alert("Delete account?", isPresented: $showDeleteAccountConfirm) {
+                Button("Cancel", role: .cancel) { }
+                Button("Request Delete", role: .destructive) {
+                    Task {
+                        await requestDeleteAccount()
+                    }
+                }
+            } message: {
+                Text("We’ll email you a verification link to confirm account deletion.")
+            }
+            .alert("Account Deletion", isPresented: $showDeleteAccountResult) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteAccountResultMessage)
+            }
         }
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+    
+    private func openSupportEmail(subject: String, body: String? = nil) {
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
+        let encodedBody = body?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        var urlString = "mailto:support@morphed.app?subject=\(encodedSubject)"
+        if let encodedBody {
+            urlString += "&body=\(encodedBody)"
+        }
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    @MainActor
+    private func requestDeleteAccount() async {
+        do {
+            try await authManager.requestAccountDeletion()
+            deleteAccountResultMessage = "Verification email sent. Open it to confirm deletion."
+        } catch {
+            deleteAccountResultMessage = "Could not send verification email. Please try again."
+        }
+        showDeleteAccountResult = true
     }
 }
 
@@ -363,6 +517,141 @@ struct SettingsMenuItem: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct SettingsToggleRow: View {
+    let icon: String
+    let title: String
+    let color: Color
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+            
+            Text(title)
+                .font(.system(.body, design: .default, weight: .medium))
+                .foregroundColor(.textPrimary)
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(Color.cardBackground)
+        .cornerRadius(DesignSystem.CornerRadius.sm)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct SettingsValueRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+            
+            Text(title)
+                .font(.system(.body, design: .default, weight: .medium))
+                .foregroundColor(.textPrimary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(.subheadline, design: .default, weight: .semibold))
+                .foregroundColor(.textSecondary)
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.textSecondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(Color.cardBackground)
+        .cornerRadius(DesignSystem.CornerRadius.sm)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct SettingsInfoRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+            
+            Text(title)
+                .font(.system(.body, design: .default, weight: .medium))
+                .foregroundColor(.textPrimary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(.subheadline, design: .default, weight: .semibold))
+                .foregroundColor(.textSecondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(Color.cardBackground)
+        .cornerRadius(DesignSystem.CornerRadius.sm)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct InfoSheetView: View {
+    @Environment(\.dismiss) var dismiss
+    let title: String
+    let message: String
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.backgroundGradient
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    Text(message)
+                        .font(.system(.body, design: .default, weight: .regular))
+                        .foregroundColor(.textPrimary)
+                        .padding(DesignSystem.Spacing.lg)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        Haptics.impact(style: .light)
+                        dismiss()
+                    }
+                    .foregroundColor(.textPrimary)
+                }
+            }
+        }
     }
 }
 
