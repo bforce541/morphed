@@ -15,9 +15,6 @@ struct SettingsView: View {
     @State private var showPrivacy = false
     @State private var showLicenses = false
     @State private var showWhatsNew = false
-    @State private var showDeleteAccountConfirm = false
-    @State private var showDeleteAccountResult = false
-    @State private var deleteAccountResultMessage = ""
     @AppStorage("morphed_auto_save_to_photos") private var autoSaveToPhotos = true
     @AppStorage("morphed_default_edit_mode") private var defaultEditModeRaw = EditorViewModel.EditMode.presence.rawValue
     
@@ -59,14 +56,6 @@ struct SettingsView: View {
                                     router.showPremium()
                                 }
                                 
-                                SettingsMenuItem(
-                                    icon: "trash.fill",
-                                    title: "Delete Account",
-                                    color: .red
-                                ) {
-                                    Haptics.impact(style: .light)
-                                    showDeleteAccountConfirm = true
-                                }
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
                         }
@@ -276,21 +265,6 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
-            .alert("Delete account?", isPresented: $showDeleteAccountConfirm) {
-                Button("Cancel", role: .cancel) { }
-                Button("Request Delete", role: .destructive) {
-                    Task {
-                        await requestDeleteAccount()
-                    }
-                }
-            } message: {
-                Text("We’ll email you a verification link to confirm account deletion.")
-            }
-            .alert("Account Deletion", isPresented: $showDeleteAccountResult) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(deleteAccountResultMessage)
-            }
         }
     }
 
@@ -310,16 +284,6 @@ struct SettingsView: View {
         UIApplication.shared.open(url)
     }
 
-    @MainActor
-    private func requestDeleteAccount() async {
-        do {
-            try await authManager.requestAccountDeletion()
-            deleteAccountResultMessage = "Verification email sent. Open it to confirm deletion."
-        } catch {
-            deleteAccountResultMessage = "Could not send verification email. Please try again."
-        }
-        showDeleteAccountResult = true
-    }
 }
 
 struct ChangePasswordView: View {
