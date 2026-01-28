@@ -43,6 +43,19 @@ app.post("/edit", async (req, res) => {
 
         const { mode, imageBase64, mimeType } = req.body;
 
+        // Feature flag: Gemini API must be explicitly enabled
+        const geminiEnabled = process.env.GEMINI_ENABLED === "true";
+        if (!geminiEnabled) {
+            console.error(`[${requestId}] Gemini API is disabled (GEMINI_ENABLED=false)`);
+            return res.status(503).json({
+                error: {
+                    code: "SERVICE_UNAVAILABLE",
+                    message: "Gemini API is currently disabled",
+                    details: "Set GEMINI_ENABLED=true in your .env file to enable image processing"
+                }
+            });
+        }
+
         if (!process.env.GEMINI_API_KEY) {
             console.error(`[${requestId}] GEMINI_API_KEY not configured`);
             return res.status(500).json({

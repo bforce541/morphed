@@ -2,6 +2,9 @@
 
 const MAX_IMAGE_SIZE_BYTES = 6 * 1024 * 1024; // 6MB
 
+// Valid edit modes (source of truth: iOS app)
+const VALID_MODES = ["presence", "physique", "face", "style"];
+
 export function validateEditRequest(body) {
     if (!body) {
         return {
@@ -17,15 +20,15 @@ export function validateEditRequest(body) {
         return {
             valid: false,
             error: "mode is required",
-            details: "The 'mode' field must be present and set to 'max' or 'clean'"
+            details: `The 'mode' field must be present and set to one of: ${VALID_MODES.join(", ")}`
         };
     }
 
-    if (mode !== "max" && mode !== "clean") {
+    if (!VALID_MODES.includes(mode)) {
         return {
             valid: false,
             error: "Invalid mode",
-            details: `Mode must be 'max' or 'clean', received: ${mode}`
+            details: `Mode must be one of: ${VALID_MODES.join(", ")}, received: ${mode}`
         };
     }
 
@@ -90,4 +93,3 @@ export function validateEditRequest(body) {
 
     return { valid: true };
 }
-

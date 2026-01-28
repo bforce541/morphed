@@ -1,46 +1,74 @@
 // morphed-backend/src/prompts.js
 
-const MAX_PROMPT = `You are a professional photo editor specializing in masculine enhancement for social media. Edit this photo with aggressive but realistic enhancements:
+// PLACEHOLDER PROMPTS - Replace these with your actual prompts when ready
+// These are safe defaults that will work but produce generic results
 
-- Sharpen and define the jawline subtly but noticeably
-- Enhance eye intensity and clarity for a more striking look
-- Clean up skin while preserving natural texture (no plastic look)
-- Enhance beard definition if present, making it look fuller and more defined
-- Slightly widen shoulders and make chest appear fuller and more muscular
-- Tighten waist area subtly for a more V-shaped torso
-- Apply dramatic but natural lighting and higher contrast for impact
+const PRESENCE_PROMPT = `You are a professional photo editor. Edit this photo to optimize posture, proportions, and framing:
+
+- Optimize upright posture and body positioning
+- Adjust camera angle for better framing
+- Enhance shoulder framing and presence
+- Apply subtle vertical elongation (optical, not literal)
 - Keep the person's identity completely unchanged
 - Do not add any text, logos, watermarks, or tattoos
-- Avoid grotesque distortions or cartoon-like muscles
-- Do not change ethnicity, age, or facial features beyond subtle enhancements
-- Keep it realistic but "clout" aesthetic is acceptable for social media
-- No unrealistic body proportions
-
-Return only the edited image as base64-encoded JPEG, no text explanations.`;
-
-const CLEAN_PROMPT = `You are a professional photo editor specializing in natural, subtle enhancements. Edit this photo with minimal, natural improvements:
-
-- Improve lighting naturally for better overall appearance
-- Add mild jaw definition if appropriate, keeping it very subtle
-- Clean up skin while preserving all natural texture and imperfections
-- Make minimal body adjustments if any, keeping changes barely noticeable
-- Enhance contrast gently for a more polished look
-- Keep the person's identity completely unchanged
-- Do not add any text, logos, watermarks, or tattoos
-- Avoid any distortions or obvious edits
+- Avoid distortions or unrealistic changes
 - Do not change ethnicity, age, or facial structure
-- Keep it looking completely natural and authentic
-- No unrealistic changes
 
 Return only the edited image as base64-encoded JPEG, no text explanations.`;
 
+const PHYSIQUE_PROMPT = `You are a professional photo editor. Edit this photo to emphasize visual definition through lighting, shadows, and fit:
+
+- Emphasize V-taper silhouette
+- Enhance chest and shoulder lighting
+- Improve shirt fit (wrinkles → structure)
+- Do not add fake muscles or unrealistic proportions
+- Keep the person's identity completely unchanged
+- Do not add any text, logos, watermarks, or tattoos
+- Avoid distortions or cartoon-like enhancements
+- Do not change ethnicity, age, or facial structure
+
+Return only the edited image as base64-encoded JPEG, no text explanations.`;
+
+const FACE_PROMPT = `You are a professional photo editor. Edit this photo to improve structure and clarity:
+
+- Enhance jaw and cheekbone definition
+- Improve eye clarity and intensity
+- Polish skin texture while preserving natural look
+- Keep the person's identity completely unchanged
+- Do not add any text, logos, watermarks, or tattoos
+- Avoid distortions or unrealistic changes
+- Do not change ethnicity, age, or facial structure
+
+Return only the edited image as base64-encoded JPEG, no text explanations.`;
+
+const STYLE_PROMPT = `You are a professional photo editor. Edit this photo to improve outfit sharpness and silhouette:
+
+- Improve clothing drape and fit
+- Enhance cleaner lines and structure
+- Boost contrast and texture for visual pop
+- Keep the person's identity completely unchanged
+- Do not add any text, logos, watermarks, or tattoos
+- Avoid distortions or unrealistic changes
+- Do not change ethnicity, age, or facial structure
+
+Return only the edited image as base64-encoded JPEG, no text explanations.`;
+
+/**
+ * Get the prompt for a given edit mode
+ * @param {string} mode - One of: presence, physique, face, style
+ * @returns {string} The prompt text for the mode
+ */
 export function getPromptForMode(mode) {
-    if (mode === "max") {
-        return MAX_PROMPT;
-    } else if (mode === "clean") {
-        return CLEAN_PROMPT;
-    } else {
-        throw new Error(`Invalid mode: ${mode}. Must be 'max' or 'clean'`);
+    switch (mode) {
+        case "presence":
+            return PRESENCE_PROMPT;
+        case "physique":
+            return PHYSIQUE_PROMPT;
+        case "face":
+            return FACE_PROMPT;
+        case "style":
+            return STYLE_PROMPT;
+        default:
+            throw new Error(`Invalid mode: ${mode}. Must be one of: presence, physique, face, style`);
     }
 }
-
