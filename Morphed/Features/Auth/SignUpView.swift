@@ -123,9 +123,31 @@ struct SignUpView: View {
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(focusedField == .password ? Color.cyberCyan : Color.clear, lineWidth: 2)
+                                    .stroke(passwordTooShort ? Color.orange : (focusedField == .password ? Color.cyberCyan : Color.clear), lineWidth: 2)
                             )
+                            
+                            if passwordTooShort {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.orange)
+                                    Text("Use at least 6 characters")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                    Text("\(password.count)/6")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.offWhite.opacity(0.7))
+                                        .padding(.vertical, 4)
+                                        .padding(.horizontal, 6)
+                                        .background(Color.deepSlate.opacity(0.7))
+                                        .cornerRadius(6)
+                                }
+                                .padding(.horizontal, 4)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
+                        .animation(.easeInOut(duration: 0.2), value: passwordTooShort)
                         
                         // Confirm Password Field
                         VStack(alignment: .leading, spacing: 8) {
@@ -293,6 +315,10 @@ struct SignUpView: View {
         !password.isEmpty &&
         password.count >= 6 &&
         password == confirmPassword
+    }
+
+    private var passwordTooShort: Bool {
+        !password.isEmpty && password.count < 6
     }
     
     private func handleSignUp() async {

@@ -56,6 +56,10 @@
 	<string>yoshua.morphed</string>
 	<key>SUPABASE_URL</key>
 	<string>https://fhjcxbqbpwpdwqhefrxm.supabase.co</string>
+	<key>STRIPE_PRICE_ID_PREMIUM</key>
+	<string>$(STRIPE_PRICE_ID_PREMIUM)</string>
+	<key>STRIPE_PRICE_ID_PRO</key>
+	<string>$(STRIPE_PRICE_ID_PRO)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
