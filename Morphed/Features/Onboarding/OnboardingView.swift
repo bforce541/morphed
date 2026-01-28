@@ -99,7 +99,12 @@ struct OnboardingView: View {
     }
     
     private func completeOnboarding() {
-        UserDefaults.standard.set(true, forKey: "has_seen_onboarding")
+        if let userId = AuthManager.shared.currentUser?.id, !userId.isEmpty {
+            UserDefaults.standard.set(true, forKey: "has_seen_onboarding_\(userId)")
+        } else {
+            // Fallback for legacy behavior if no user is available.
+            UserDefaults.standard.set(true, forKey: "has_seen_onboarding")
+        }
         Haptics.impact(style: .medium)
         isPresented = false
     }
@@ -198,7 +203,7 @@ struct OnboardingScreen3: View {
                 .padding(.bottom, DesignSystem.Spacing.lg)
             
             // Title
-            Text("See your preview free")
+            Text("See your preview")
                 .font(.system(.largeTitle, design: .default, weight: .semibold))
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)

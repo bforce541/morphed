@@ -29,13 +29,18 @@ struct RootView: View {
     @EnvironmentObject var router: AppRouter
     @State private var showOnboarding = false
     
-    private var hasSeenOnboarding: Bool {
-        UserDefaults.standard.bool(forKey: "has_seen_onboarding")
+    private var hasSeenOnboardingForCurrentUser: Bool {
+        if let userId = authManager.currentUser?.id, !userId.isEmpty {
+            return UserDefaults.standard.bool(forKey: "has_seen_onboarding_\(userId)")
+        } else {
+            // Fallback for pre-existing installs before per-account onboarding
+            return UserDefaults.standard.bool(forKey: "has_seen_onboarding")
+        }
     }
     
     private var shouldShowOnboarding: Bool {
-        // Only show onboarding for new users (not logged in and haven't seen it)
-        !authManager.isAuthenticated && !hasSeenOnboarding
+        // Show onboarding on first successful login per account.
+        authManager.isAuthenticated && !hasSeenOnboardingForCurrentUser
     }
     
     var body: some View {

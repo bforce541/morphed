@@ -279,6 +279,19 @@ final class AuthManager: ObservableObject {
             let isSameUser = currentUser?.id == baseUser.id
             let existingAvatar = isSameUser ? currentUser?.avatarURL : nil
             let existingName = isSameUser ? currentUser?.name : nil
+
+            // If the authenticated user has changed, reset any device-local,
+            // non-account-scoped state so it doesn't leak across accounts.
+            if !isSameUser {
+                // Clear local history for privacy so a new account on the same
+                // device never sees another account's images.
+                UserDefaults.standard.removeObject(forKey: "morphed_history")
+
+                // Reset local subscription state so free/pro/premium status
+                // never "sticks" from a previous account.
+                SubscriptionManager.shared.resetToFree()
+            }
+
             currentUser = AppUser(
                 id: baseUser.id,
                 email: baseUser.email,
@@ -295,9 +308,13 @@ final class AuthManager: ObservableObject {
                 }
             }
         } else {
+            // Logged out: clear local, device-scoped state so the next login
+            // starts clean.
             currentUser = nil
             isAuthenticated = false
             lastSyncedUserId = nil
+            UserDefaults.standard.removeObject(forKey: "morphed_history")
+            SubscriptionManager.shared.resetToFree()
         }
     }
 
