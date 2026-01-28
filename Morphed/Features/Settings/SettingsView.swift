@@ -92,20 +92,23 @@ struct SettingsView: View {
                                     isOn: $autoSaveToPhotos
                                 )
                                 
-                                Menu {
-                                    ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
-                                        Button(mode.displayName) {
-                                            Haptics.impact(style: .light)
-                                            defaultEditModeRaw = mode.rawValue
+                                // Only show Default Edit Mode for Pro/Premium users
+                                if isPro {
+                                    Menu {
+                                        ForEach(EditorViewModel.EditMode.allCases, id: \.self) { mode in
+                                            Button(mode.displayName) {
+                                                Haptics.impact(style: .light)
+                                                defaultEditModeRaw = mode.rawValue
+                                            }
                                         }
+                                    } label: {
+                                        SettingsValueRow(
+                                            icon: "slider.horizontal.3",
+                                            title: "Default Edit Mode",
+                                            value: defaultEditMode.displayName,
+                                            color: .textSecondary
+                                        )
                                     }
-                                } label: {
-                                    SettingsValueRow(
-                                        icon: "slider.horizontal.3",
-                                        title: "Default Edit Mode",
-                                        value: defaultEditMode.displayName,
-                                        color: .textSecondary
-                                    )
                                 }
                             }
                             .padding(.horizontal, DesignSystem.Spacing.md)
