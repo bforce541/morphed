@@ -59,7 +59,11 @@ struct SettingsView: View {
                                     showBadge: isPro
                                 ) {
                                     Haptics.impact(style: .light)
-                                    router.showPremium()
+                                    // Dismiss Settings sheet first, then show Paywall
+                                    dismiss()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        router.showPremium()
+                                    }
                                 }
 
                                 SettingsMenuItem(
