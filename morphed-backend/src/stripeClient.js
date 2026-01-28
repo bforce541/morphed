@@ -53,6 +53,8 @@ export async function createCheckoutSession(priceId, userId, successUrl, cancelU
                     userId: userId,
                 },
             },
+            allow_promotion_codes: true, // Enable promo code field in Stripe checkout
+            payment_method_collection: "if_required", // Only require payment method if total > $0 (handles $0 totals and 100% discount promo codes)
         });
 
         return session;

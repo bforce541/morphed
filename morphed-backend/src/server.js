@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 
 app.post("/edit", async (req, res) => {
     const { requestId } = req;
-    
+
     try {
         const validation = validateEditRequest(req.body);
         if (!validation.valid) {
@@ -40,9 +40,9 @@ app.post("/edit", async (req, res) => {
                 }
             });
         }
-        
+
         const { mode, imageBase64, mimeType } = req.body;
-        
+
         if (!process.env.GEMINI_API_KEY) {
             console.error(`[${requestId}] GEMINI_API_KEY not configured`);
             return res.status(500).json({
@@ -53,25 +53,25 @@ app.post("/edit", async (req, res) => {
                 }
             });
         }
-        
+
         console.log(`[${requestId}] Processing ${mode} mode request`);
-        
+
         const result = await Promise.race([
             editImageWithGemini(imageBase64, mode, process.env.GEMINI_API_KEY),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Request timeout")), 120000)
             )
         ]);
-        
+
         console.log(`[${requestId}] Successfully processed image`);
-        
+
         res.json({
             editedImageBase64: result.imageBase64,
             mimeType: result.mimeType || "image/jpeg"
         });
     } catch (error) {
         console.error(`[${requestId}] Error:`, error.message);
-        
+
         if (error.message.includes("timeout")) {
             return res.status(504).json({
                 error: {
@@ -81,7 +81,7 @@ app.post("/edit", async (req, res) => {
                 }
             });
         }
-        
+
         if (error.message.includes("MODEL_ERROR") || error.message.includes("did not return an image")) {
             return res.status(500).json({
                 error: {
@@ -91,7 +91,7 @@ app.post("/edit", async (req, res) => {
                 }
             });
         }
-        
+
         res.status(500).json({
             error: {
                 code: "INTERNAL",
@@ -144,10 +144,10 @@ app.get("/entitlements", (req, res) => {
 // Stripe Checkout Session Creation
 app.post("/stripe/create-checkout-session", async (req, res) => {
     const { requestId } = req;
-    
+
     try {
         const { priceId, userId } = req.body;
-        
+
         if (!priceId) {
             return res.status(400).json({
                 error: {
@@ -156,7 +156,7 @@ app.post("/stripe/create-checkout-session", async (req, res) => {
                 }
             });
         }
-        
+
         if (!userId) {
             return res.status(400).json({
                 error: {
@@ -165,13 +165,13 @@ app.post("/stripe/create-checkout-session", async (req, res) => {
                 }
             });
         }
-        
+
         // Validate price IDs
         const validPriceIds = [
             process.env.STRIPE_PRICE_ID_PRO,
             process.env.STRIPE_PRICE_ID_PREMIUM
         ];
-        
+
         if (!validPriceIds.includes(priceId)) {
             return res.status(400).json({
                 error: {
@@ -180,15 +180,15 @@ app.post("/stripe/create-checkout-session", async (req, res) => {
                 }
             });
         }
-        
+
         // Deep link URLs for iOS app
         const successUrl = "morphed://stripe-success?session_id={CHECKOUT_SESSION_ID}";
         const cancelUrl = "morphed://stripe-cancel";
-        
+
         console.log(`[${requestId}] Creating checkout session for priceId=${priceId}, userId=${userId}`);
-        
+
         const session = await createCheckoutSession(priceId, userId, successUrl, cancelUrl);
-        
+
         res.json({
             url: session.url
         });
@@ -207,16 +207,16 @@ app.post("/stripe/create-checkout-session", async (req, res) => {
 app.post("/stripe/webhook", async (req, res) => {
     const { requestId } = req;
     const sig = req.headers["stripe-signature"];
-    
+
     try {
         if (!sig) {
             return res.status(400).json({ error: "Missing stripe-signature header" });
         }
-        
+
         const event = verifyWebhookSignature(req.body, sig);
-        
+
         console.log(`[${requestId}] Webhook received: ${event.type}`);
-        
+
         // Handle subscription events
         switch (event.type) {
             case "checkout.session.completed":
@@ -224,24 +224,24 @@ app.post("/stripe/webhook", async (req, res) => {
                 console.log(`[${requestId}] Checkout completed for session: ${session.id}`);
                 // Here you would update your database with the subscription
                 break;
-                
+
             case "customer.subscription.created":
             case "customer.subscription.updated":
                 const subscription = event.data.object;
                 console.log(`[${requestId}] Subscription ${event.type}: ${subscription.id}`);
                 // Update subscription status in your database
                 break;
-                
+
             case "customer.subscription.deleted":
                 const deletedSubscription = event.data.object;
                 console.log(`[${requestId}] Subscription cancelled: ${deletedSubscription.id}`);
                 // Update subscription status in your database
                 break;
-                
+
             default:
                 console.log(`[${requestId}] Unhandled event type: ${event.type}`);
         }
-        
+
         res.json({ received: true });
     } catch (error) {
         console.error(`[${requestId}] Webhook error:`, error.message);
@@ -250,7 +250,7 @@ app.post("/stripe/webhook", async (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-    res.json({ 
+    res.json({
         status: "ok",
         timestamp: new Date().toISOString()
     });
