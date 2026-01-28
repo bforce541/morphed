@@ -262,10 +262,10 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showTerms) {
-                SafariView(url: router.openTerms())
+                TermsOfServiceView()
             }
             .sheet(isPresented: $showPrivacy) {
-                SafariView(url: router.openPrivacy())
+                PrivacyPolicyView()
             }
             .sheet(isPresented: $showLicenses) {
                 InfoSheetView(
