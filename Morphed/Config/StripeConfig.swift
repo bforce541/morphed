@@ -3,10 +3,10 @@
 import Foundation
 
 enum StripeConfig {
-    static let publishableKey = "pk_test_51Ssr3pCiX5ufkuvRk6uzr5fTHuxvVWhaVvwPRq2Qcuri4ucygo3Vq1CmQobqU9PBW5rPTutZ4K2mR1bGFEtZCMQR0043NHh7O7"
+    static let publishableKey = "pk_live_51Ssr3kE4W67XwMpcnBiyY8qjn6afGY335cC1eVwF300L6iT8l78tB1jpNlr9j8aAvdvisUS2tM6vc9H7wUc6ZBJV00DgQgQpaX"
     
-    static let priceIdPro = "price_1SsrIJCiX5ufkuvRIYRTOlFl"
-    static let priceIdPremium = "price_1SsrJ5CiX5ufkuvRWhGBOOsa"
+    static let priceIdPro = "price_1Sud2gE4W67XwMpcgOpywVMM"
+    static let priceIdPremium = "price_1Sud3JE4W67XwMpcvFWcuVBo"
     
     static func priceId(for planID: PricingPlanID) -> String? {
         switch planID {

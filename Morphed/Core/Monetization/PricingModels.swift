@@ -42,7 +42,7 @@ enum PricingModels {
         id: .weekly,
         title: "Pro",
         subtitle: "Unlimited HD morphs",
-        priceText: "$9.99 / week",
+        priceText: "$6.99 / week",
         badgeText: "MOST POPULAR",
         isHighlighted: true,
         bulletPoints: [
@@ -59,7 +59,7 @@ enum PricingModels {
         id: .monthlyPro,
         title: "Premium",
         subtitle: "For creators & power users",
-        priceText: "$29 / month",
+        priceText: "$11.99 / month",
         badgeText: nil,
         isHighlighted: false,
         bulletPoints: [
