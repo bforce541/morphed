@@ -4,6 +4,7 @@ import Foundation
 import AuthenticationServices
 import Combine
 import Supabase
+import CryptoKit
 import UIKit
 
 @MainActor
@@ -175,6 +176,7 @@ final class AuthManager: ObservableObject {
         defer { isLoading = false }
 
         let user = try await requireAuthenticatedUser()
+        let localPairIds = Set(loadHistoryItems().map { $0.pairId.isEmpty ? $0.id : $0.pairId })
 
         let response: PostgrestResponse<[CreatedImageRow]> = try await supabase
             .from("created_images")
@@ -182,7 +184,13 @@ final class AuthManager: ObservableObject {
             .eq("profile_id", value: user.id.uuidString)
             .execute()
 
-        let paths = response.value.flatMap { [$0.originalPath, $0.createdPath] }
+        let remotePairIds = Set(response.value.map { $0.id })
+        let storagePairIds = localPairIds.union(remotePairIds)
+        let pathsFromRows = response.value.flatMap { [$0.originalPath, $0.createdPath] }
+        let pathsFromPairs = storagePairIds.flatMap { pairId in
+            ["\(user.id.uuidString)/\(pairId)/original.jpg", "\(user.id.uuidString)/\(pairId)/created.jpg"]
+        }
+        let paths = Array(Set(pathsFromRows + pathsFromPairs))
         if !paths.isEmpty {
             _ = try await supabase.storage
                 .from("morphed-images")
@@ -196,6 +204,27 @@ final class AuthManager: ObservableObject {
             .execute()
 
         UserDefaults.standard.removeObject(forKey: "morphed_history")
+    }
+
+    func deleteHistoryItems(pairIds: [String]) async throws {
+        guard !pairIds.isEmpty else { return }
+        let user = try await requireAuthenticatedUser()
+
+        let storagePaths = pairIds.flatMap { pairId in
+            ["\(user.id.uuidString)/\(pairId)/original.jpg", "\(user.id.uuidString)/\(pairId)/created.jpg"]
+        }
+        _ = try await supabase.storage
+            .from("morphed-images")
+            .remove(paths: storagePaths)
+
+        for pairId in pairIds {
+            _ = try await supabase
+                .from("created_images")
+                .delete()
+                .eq("profile_id", value: user.id.uuidString)
+                .eq("id", value: pairId)
+                .execute()
+        }
     }
     
     private func listenForAuthChanges() {
@@ -387,13 +416,9 @@ final class AuthManager: ObservableObject {
         created: UIImage,
         mode: String,
         pairId: String? = nil
-    ) async throws {
+    ) async throws -> String {
         let session = try await supabase.auth.session
         let userId = session.user.id.uuidString
-        let resolvedPairId = pairId ?? UUID().uuidString
-        let basePath = "\(userId)/\(resolvedPairId)"
-        let originalPath = "\(basePath)/original.jpg"
-        let createdPath = "\(basePath)/created.jpg"
 
         let resizedOriginal = ImageUtils.resizeImage(original, maxDimension: 2048) ?? original
         let resizedCreated = ImageUtils.resizeImage(created, maxDimension: 2048) ?? created
@@ -403,28 +428,102 @@ final class AuthManager: ObservableObject {
             throw AuthError.invalidImage
         }
 
+        let originalHash = sha256Hex(originalData)
+        let existingPairId = try await resolveOriginalPair(
+            hash: originalHash,
+            mode: mode,
+            accessToken: session.accessToken
+        )
+        let deterministicPairId = deterministicPairId(originalHash: originalHash, mode: mode)
+        let finalPairId = existingPairId ?? deterministicPairId
+
+        if let existingPairId {
+            return existingPairId
+        }
+
+        if try await createdImageExists(pairId: deterministicPairId, userId: userId) {
+            return deterministicPairId
+        }
+        let finalBasePath = "\(userId)/\(finalPairId)"
+        let finalOriginalPath = "\(finalBasePath)/original.jpg"
+        let finalCreatedPath = "\(finalBasePath)/created.jpg"
+
         let options = FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
 
-        _ = try await supabase.storage
-            .from("morphed-images")
-            .upload(originalPath, data: originalData, options: options)
+        if existingPairId == nil {
+            _ = try await supabase.storage
+                .from("morphed-images")
+                .upload(finalOriginalPath, data: originalData, options: options)
+        }
 
         _ = try await supabase.storage
             .from("morphed-images")
-            .upload(createdPath, data: createdData, options: options)
+            .upload(finalCreatedPath, data: createdData, options: options)
 
         let payload = CreatedImagePayload(
-            id: resolvedPairId,
+            id: finalPairId,
             profileId: userId,
-            originalPath: originalPath,
-            createdPath: createdPath,
-            mode: mode
+            originalPath: finalOriginalPath,
+            createdPath: finalCreatedPath,
+            mode: mode,
+            originalHash: originalHash
         )
 
         _ = try await supabase
             .from("created_images")
             .upsert(payload, onConflict: "id")
             .execute()
+
+        return finalPairId
+    }
+
+    private func createdImageExists(pairId: String, userId: String) async throws -> Bool {
+        let response: PostgrestResponse<[CreatedImageIdRow]> = try await supabase
+            .from("created_images")
+            .select("id")
+            .eq("profile_id", value: userId)
+            .eq("id", value: pairId)
+            .limit(1)
+            .execute()
+        return !response.value.isEmpty
+    }
+
+    private func resolveOriginalPair(hash: String, mode: String, accessToken: String) async throws -> String? {
+        let url = SupabaseConfig.url.appendingPathComponent("functions/v1/resolve-original")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["original_hash": hash, "mode": mode])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { return nil }
+        if !(200...299).contains(httpResponse.statusCode) {
+            return nil
+        }
+        let decoded = try? JSONDecoder().decode(OriginalResolveResponse.self, from: data)
+        return decoded?.pairId
+    }
+
+    private func sha256Hex(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    private func deterministicPairId(originalHash: String, mode: String) -> String {
+        let combined = "\(originalHash)|\(mode)"
+        let digest = SHA256.hash(data: Data(combined.utf8))
+        var bytes = Array(digest)
+        bytes[6] = (bytes[6] & 0x0F) | 0x50 // version 5
+        bytes[8] = (bytes[8] & 0x3F) | 0x80 // RFC 4122 variant
+        let hex = bytes.prefix(16).map { String(format: "%02x", $0) }.joined()
+        let part1 = String(hex.prefix(8))
+        let part2 = String(hex.dropFirst(8).prefix(4))
+        let part3 = String(hex.dropFirst(12).prefix(4))
+        let part4 = String(hex.dropFirst(16).prefix(4))
+        let part5 = String(hex.dropFirst(20).prefix(12))
+        return "\(part1)-\(part2)-\(part3)-\(part4)-\(part5)"
     }
 
     private func syncLocalHistory(for userId: String) async {
@@ -442,16 +541,14 @@ final class AuthManager: ObservableObject {
                 continue
             }
 
-            let pairId = items[index].pairId.isEmpty ? items[index].id : items[index].pairId
-
             do {
-                try await storeCreatedImagePair(
+                let finalPairId = try await storeCreatedImagePair(
                     original: originalImage,
                     created: editedImage,
                     mode: items[index].mode.rawValue,
-                    pairId: pairId
+                    pairId: items[index].pairId.isEmpty ? items[index].id : items[index].pairId
                 )
-                items[index].pairId = pairId
+                items[index].pairId = finalPairId
                 items[index].isSynced = true
                 didUpdate = true
             } catch {
@@ -560,6 +657,7 @@ private struct CreatedImagePayload: Encodable {
     let originalPath: String
     let createdPath: String
     let mode: String
+    let originalHash: String
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -567,6 +665,7 @@ private struct CreatedImagePayload: Encodable {
         case originalPath = "original_path"
         case createdPath = "created_path"
         case mode
+        case originalHash = "original_hash"
     }
 }
 
@@ -579,6 +678,24 @@ private struct CreatedImageRow: Decodable {
         case id
         case originalPath = "original_path"
         case createdPath = "created_path"
+    }
+}
+
+private struct CreatedImageIdRow: Decodable {
+    let id: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+    }
+}
+
+private struct OriginalResolveResponse: Decodable {
+    let exists: Bool
+    let pairId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case exists
+        case pairId = "pair_id"
     }
 }
 

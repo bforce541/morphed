@@ -100,13 +100,13 @@ final class SubscriptionManager: ObservableObject {
     
     /// Record that a morph was completed.
     /// - Parameter isPremium: whether this should consume a premium credit.
-    func recordMorph(isPremium: Bool) {
+    func recordMorph(isPremium: Bool, triggerPaywall: Bool = true) {
         state.totalMorphs += 1
         
         if state.tier == .free {
             state.freePreviewRenders += 1
             // Trigger paywall after the first successful preview.
-            if state.freePreviewRenders == 1 {
+            if triggerPaywall, state.freePreviewRenders == 1 {
                 shouldPresentPaywall = true
             }
         }
@@ -116,11 +116,13 @@ final class SubscriptionManager: ObservableObject {
                 // Nothing to decrement.
             } else if state.remainingPremiumRenders > 0 {
                 state.remainingPremiumRenders -= 1
-                if state.remainingPremiumRenders == 0 {
+                if triggerPaywall, state.remainingPremiumRenders == 0 {
                     shouldPresentPaywall = true
                 }
             } else {
-                shouldPresentPaywall = true
+                if triggerPaywall {
+                    shouldPresentPaywall = true
+                }
             }
         }
         
@@ -192,5 +194,4 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 }
-
 

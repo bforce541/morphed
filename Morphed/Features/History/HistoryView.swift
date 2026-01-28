@@ -11,6 +11,8 @@ struct HistoryView: View {
     @State private var selectedIds = Set<String>()
     @State private var showDeleteConfirm = false
     @State private var showShareSheet = false
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
     @State private var selectedFilter: EditorViewModel.EditMode? = nil
 
     private var filteredItems: [HistoryItem] {
@@ -144,12 +146,24 @@ struct HistoryView: View {
                 Button("Cancel", role: .cancel) { }
                 Button("OK", role: .destructive) {
                     Haptics.impact(style: .medium)
-                    viewModel.deleteItems(withIDs: selectedIds)
-                    selectedIds.removeAll()
-                    isSelecting = false
+                    Task {
+                        do {
+                            try await viewModel.deleteItems(withIDs: selectedIds)
+                            selectedIds.removeAll()
+                            isSelecting = false
+                        } catch {
+                            deleteErrorMessage = error.localizedDescription
+                            showDeleteError = true
+                        }
+                    }
                 }
             } message: {
                 Text("This action cannot be undone.")
+            }
+            .alert("Delete Failed", isPresented: $showDeleteError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteErrorMessage.isEmpty ? "Please try again." : deleteErrorMessage)
             }
         }
         .onChange(of: viewModel.items.count) { newCount in
@@ -339,13 +353,22 @@ class HistoryViewModel: ObservableObject {
         saveHistory()
     }
     
-    func clearHistory() {
+    func clearHistory() async throws {
+        try await AuthManager.shared.deleteHistory()
         items.removeAll()
         saveHistory()
     }
     
-    func deleteItems(withIDs ids: Set<String>) {
+    func deleteItems(withIDs ids: Set<String>) async throws {
         guard !ids.isEmpty else { return }
+        let itemsToDelete = items.filter { ids.contains($0.id) }
+        let pairIds = itemsToDelete
+            .map { $0.pairId.isEmpty ? $0.id : $0.pairId }
+
+        if !pairIds.isEmpty {
+            try await AuthManager.shared.deleteHistoryItems(pairIds: pairIds)
+        }
+
         items.removeAll { ids.contains($0.id) }
         saveHistory()
     }
@@ -354,6 +377,8 @@ class HistoryViewModel: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: "morphed_history"),
            let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
             items = decoded
+        } else {
+            items = []
         }
     }
     

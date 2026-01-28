@@ -136,7 +136,7 @@ class EditorViewModel: ObservableObject {
         
         // Record usage
         UsageTracker.recordMorph(mode: selectedMode)
-        SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence)
+        SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence, triggerPaywall: false)
         
         Haptics.notification(type: .success)
         isLoading = false
@@ -210,7 +210,7 @@ class EditorViewModel: ObservableObject {
             
             // Record usage and monetization events
             UsageTracker.recordMorph(mode: selectedMode)
-            SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence)
+            SubscriptionManager.shared.recordMorph(isPremium: selectedMode != .presence, triggerPaywall: false)
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -225,7 +225,8 @@ class EditorViewModel: ObservableObject {
     private func previewBlurRadius(for mode: EditMode) -> CGFloat { 9 }
     
     private func applyBlur(to image: UIImage, radius: CGFloat) -> UIImage? {
-        guard let ciImage = CIImage(image: image) else { return nil }
+        guard let baseCIImage = CIImage(image: image) else { return nil }
+        let ciImage = baseCIImage.oriented(forExifOrientation: image.exifOrientation)
         
         let filter = CIFilter(name: "CIGaussianBlur")
         filter?.setValue(ciImage, forKey: kCIInputImageKey)
@@ -236,7 +237,7 @@ class EditorViewModel: ObservableObject {
         let context = CIContext()
         guard let cgImage = context.createCGImage(outputImage, from: ciImage.extent) else { return nil }
         
-        return UIImage(cgImage: cgImage)
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: .up)
     }
     
     func saveToPhotos() async {
@@ -273,7 +274,6 @@ class EditorViewModel: ObservableObject {
             }
             showSaveSuccess = true
             Haptics.notification(type: .success)
-            showToast(message: "Saved to Photos!")
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -322,20 +322,20 @@ class EditorViewModel: ObservableObject {
         historyId: String
     ) async {
         do {
-            try await AuthManager.shared.storeCreatedImagePair(
+            let finalPairId = try await AuthManager.shared.storeCreatedImagePair(
                 original: original,
                 created: created,
                 mode: mode.rawValue,
                 pairId: historyId
             )
             didUploadToSupabase = true
-            markHistoryItemSynced(id: historyId)
+            markHistoryItemSynced(id: historyId, pairId: finalPairId)
         } catch {
             // Best-effort upload; failures shouldn't block the user flow.
         }
     }
 
-    private func markHistoryItemSynced(id: String) {
+    private func markHistoryItemSynced(id: String, pairId: String) {
         guard let data = UserDefaults.standard.data(forKey: "morphed_history"),
               var items = try? JSONDecoder().decode([HistoryItem].self, from: data) else {
             return
@@ -343,10 +343,26 @@ class EditorViewModel: ObservableObject {
 
         if let index = items.firstIndex(where: { $0.id == id }) {
             items[index].isSynced = true
-            items[index].pairId = items[index].pairId.isEmpty ? id : items[index].pairId
+            items[index].pairId = pairId
             if let encoded = try? JSONEncoder().encode(items) {
                 UserDefaults.standard.set(encoded, forKey: "morphed_history")
             }
+        }
+    }
+}
+
+private extension UIImage {
+    var exifOrientation: Int32 {
+        switch imageOrientation {
+        case .up: return 1
+        case .down: return 3
+        case .left: return 8
+        case .right: return 6
+        case .upMirrored: return 2
+        case .downMirrored: return 4
+        case .leftMirrored: return 5
+        case .rightMirrored: return 7
+        @unknown default: return 1
         }
     }
 }
