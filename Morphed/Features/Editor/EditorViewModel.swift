@@ -19,6 +19,7 @@ class EditorViewModel: ObservableObject {
     @Published var showToast = false
     @Published var hasGeneratedPreview = false
     @Published var didSaveToHistory = false
+    @Published var didUploadToSupabase = false
     @Published var isPreviewBlurred = false
     
     enum EditMode: String, CaseIterable, Codable {
@@ -110,6 +111,7 @@ class EditorViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         didSaveToHistory = false
+        didUploadToSupabase = false
         isPreviewBlurred = false
         
         // Simulate processing delay
@@ -193,6 +195,15 @@ class EditorViewModel: ObservableObject {
             )
             saveToHistory(historyItem)
             didSaveToHistory = true
+
+            Task { [originalImage, finalImage, selectedMode, historyId = historyItem.id] in
+                await uploadToSupabase(
+                    original: originalImage,
+                    created: finalImage,
+                    mode: selectedMode,
+                    historyId: historyId
+                )
+            }
             
             Haptics.notification(type: .success)
             showToast(message: "Image morphed successfully!")
@@ -249,6 +260,16 @@ class EditorViewModel: ObservableObject {
                 )
                 saveToHistory(historyItem)
                 didSaveToHistory = true
+                if let originalImage = originalImage {
+                    Task { [originalImage, imageToSave, selectedMode, historyId = historyItem.id] in
+                        await uploadToSupabase(
+                            original: originalImage,
+                            created: imageToSave,
+                            mode: selectedMode,
+                            historyId: historyId
+                        )
+                    }
+                }
             }
             showSaveSuccess = true
             Haptics.notification(type: .success)
@@ -273,6 +294,7 @@ class EditorViewModel: ObservableObject {
         selectedMode = nil
         hasGeneratedPreview = false
         didSaveToHistory = false
+        didUploadToSupabase = false
         isPreviewBlurred = false
     }
     
@@ -290,6 +312,41 @@ class EditorViewModel: ObservableObject {
         items.insert(item, at: 0)
         if let encoded = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(encoded, forKey: "morphed_history")
+        }
+    }
+
+    private func uploadToSupabase(
+        original: UIImage,
+        created: UIImage,
+        mode: EditMode,
+        historyId: String
+    ) async {
+        do {
+            try await AuthManager.shared.storeCreatedImagePair(
+                original: original,
+                created: created,
+                mode: mode.rawValue,
+                pairId: historyId
+            )
+            didUploadToSupabase = true
+            markHistoryItemSynced(id: historyId)
+        } catch {
+            // Best-effort upload; failures shouldn't block the user flow.
+        }
+    }
+
+    private func markHistoryItemSynced(id: String) {
+        guard let data = UserDefaults.standard.data(forKey: "morphed_history"),
+              var items = try? JSONDecoder().decode([HistoryItem].self, from: data) else {
+            return
+        }
+
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            items[index].isSynced = true
+            items[index].pairId = items[index].pairId.isEmpty ? id : items[index].pairId
+            if let encoded = try? JSONEncoder().encode(items) {
+                UserDefaults.standard.set(encoded, forKey: "morphed_history")
+            }
         }
     }
 }

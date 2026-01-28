@@ -11,6 +11,12 @@ struct SettingsView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject private var router: AppRouter
     @State private var showLogoutAlert = false
+    @State private var showDeleteAlert = false
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
+    @State private var showDeleteHistoryAlert = false
+    @State private var showDeleteHistoryError = false
+    @State private var deleteHistoryErrorMessage = ""
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showLicenses = false
@@ -54,6 +60,15 @@ struct SettingsView: View {
                                 ) {
                                     Haptics.impact(style: .light)
                                     router.showPremium()
+                                }
+
+                                SettingsMenuItem(
+                                    icon: "trash.fill",
+                                    title: "Delete Account",
+                                    color: .red
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showDeleteAlert = true
                                 }
                                 
                             }
@@ -131,7 +146,16 @@ struct SettingsView: View {
                                     Haptics.impact(style: .light)
                                     openSupportEmail(subject: "Data Export Request")
                                 }
-                                
+
+                                SettingsMenuItem(
+                                    icon: "trash",
+                                    title: "Delete History",
+                                    color: .red
+                                ) {
+                                    Haptics.impact(style: .light)
+                                    showDeleteHistoryAlert = true
+                                }
+
                                 SettingsMenuItem(
                                     icon: "face.smiling.fill",
                                     title: "Face & Body Data Usage",
@@ -265,6 +289,36 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
+            .alert("Delete Account", isPresented: $showDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete Account", role: .destructive) {
+                    Task {
+                        await deleteAccount()
+                    }
+                }
+            } message: {
+                Text("This permanently deletes your account and all associated data. There is no account recovery.")
+            }
+            .alert("Delete History", isPresented: $showDeleteHistoryAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete History", role: .destructive) {
+                    Task {
+                        await deleteHistory()
+                    }
+                }
+            } message: {
+                Text("This deletes all saved edits from this device and removes their images from your account. This action cannot be undone.")
+            }
+            .alert("Delete Failed", isPresented: $showDeleteError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteErrorMessage.isEmpty ? "Please try again." : deleteErrorMessage)
+            }
+            .alert("Delete History Failed", isPresented: $showDeleteHistoryError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteHistoryErrorMessage.isEmpty ? "Please try again." : deleteHistoryErrorMessage)
+            }
         }
     }
 
@@ -282,6 +336,31 @@ struct SettingsView: View {
         }
         guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
+    }
+
+    @MainActor
+    private func deleteAccount() async {
+        deleteErrorMessage = ""
+        do {
+            try await authManager.deleteAccount()
+            Haptics.notification(type: .success)
+            dismiss()
+        } catch {
+            deleteErrorMessage = error.localizedDescription
+            showDeleteError = true
+        }
+    }
+
+    @MainActor
+    private func deleteHistory() async {
+        deleteHistoryErrorMessage = ""
+        do {
+            try await authManager.deleteHistory()
+            Haptics.notification(type: .success)
+        } catch {
+            deleteHistoryErrorMessage = error.localizedDescription
+            showDeleteHistoryError = true
+        }
     }
 
 }

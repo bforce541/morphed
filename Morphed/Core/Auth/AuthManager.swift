@@ -17,6 +17,7 @@ final class AuthManager: ObservableObject {
     private var authStateTask: Task<Void, Never>?
     private var webAuthSession: ASWebAuthenticationSession?
     private let presentationContextProvider = AuthPresentationContextProvider()
+    private var lastSyncedUserId: String?
     
     private init() {
         syncFromCurrentUser()
@@ -137,6 +138,65 @@ final class AuthManager: ObservableObject {
         }
         updateFromSession(nil)
     }
+
+    func deleteAccount() async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        let session = try await supabase.auth.session
+        let url = SupabaseConfig.url.appendingPathComponent("functions/v1/delete-account")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["access_token": session.accessToken])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            let message = "Delete failed (\(httpResponse.statusCode)). \(body)"
+            throw NSError(domain: "DeleteAccount", code: httpResponse.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: message.trimmingCharacters(in: .whitespacesAndNewlines)
+            ])
+        }
+
+        do {
+            try await supabase.auth.signOut()
+        } catch {
+            // Best-effort sign out after deletion.
+        }
+
+        updateFromSession(nil)
+    }
+
+    func deleteHistory() async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        let user = try await requireAuthenticatedUser()
+
+        let response: PostgrestResponse<[CreatedImageRow]> = try await supabase
+            .from("created_images")
+            .select("id, original_path, created_path")
+            .eq("profile_id", value: user.id.uuidString)
+            .execute()
+
+        let paths = response.value.flatMap { [$0.originalPath, $0.createdPath] }
+        if !paths.isEmpty {
+            _ = try await supabase.storage
+                .from("morphed-images")
+                .remove(paths: paths)
+        }
+
+        _ = try await supabase
+            .from("created_images")
+            .delete()
+            .eq("profile_id", value: user.id.uuidString)
+            .execute()
+
+        UserDefaults.standard.removeObject(forKey: "morphed_history")
+    }
     
     private func listenForAuthChanges() {
         authStateTask?.cancel()
@@ -151,6 +211,13 @@ final class AuthManager: ObservableObject {
         if let user = supabase.auth.currentUser {
             currentUser = AppUser(from: user)
             isAuthenticated = true
+            let userId = user.id.uuidString
+            if lastSyncedUserId != userId {
+                lastSyncedUserId = userId
+                Task { [weak self] in
+                    await self?.syncLocalHistory(for: userId)
+                }
+            }
             Task { [weak self] in
                 await self?.refreshProfileDetails(for: user)
             }
@@ -190,9 +257,18 @@ final class AuthManager: ObservableObject {
                 avatarURL: existingAvatar
             )
             isAuthenticated = true
+
+            let userId = user.id.uuidString
+            if lastSyncedUserId != userId {
+                lastSyncedUserId = userId
+                Task { [weak self] in
+                    await self?.syncLocalHistory(for: userId)
+                }
+            }
         } else {
             currentUser = nil
             isAuthenticated = false
+            lastSyncedUserId = nil
         }
     }
 
@@ -305,6 +381,102 @@ final class AuthManager: ObservableObject {
         updateCurrentUser(name: nil, avatarURL: publicURL.absoluteString, fallbackEmail: user.email)
         await refreshProfileDetails(for: user)
     }
+
+    func storeCreatedImagePair(
+        original: UIImage,
+        created: UIImage,
+        mode: String,
+        pairId: String? = nil
+    ) async throws {
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        let resolvedPairId = pairId ?? UUID().uuidString
+        let basePath = "\(userId)/\(resolvedPairId)"
+        let originalPath = "\(basePath)/original.jpg"
+        let createdPath = "\(basePath)/created.jpg"
+
+        let resizedOriginal = ImageUtils.resizeImage(original, maxDimension: 2048) ?? original
+        let resizedCreated = ImageUtils.resizeImage(created, maxDimension: 2048) ?? created
+
+        guard let originalData = ImageUtils.compressToJPEG(resizedOriginal, quality: 0.9),
+              let createdData = ImageUtils.compressToJPEG(resizedCreated, quality: 0.9) else {
+            throw AuthError.invalidImage
+        }
+
+        let options = FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+
+        _ = try await supabase.storage
+            .from("morphed-images")
+            .upload(originalPath, data: originalData, options: options)
+
+        _ = try await supabase.storage
+            .from("morphed-images")
+            .upload(createdPath, data: createdData, options: options)
+
+        let payload = CreatedImagePayload(
+            id: resolvedPairId,
+            profileId: userId,
+            originalPath: originalPath,
+            createdPath: createdPath,
+            mode: mode
+        )
+
+        _ = try await supabase
+            .from("created_images")
+            .upsert(payload, onConflict: "id")
+            .execute()
+    }
+
+    private func syncLocalHistory(for userId: String) async {
+        var items = loadHistoryItems()
+        guard !items.isEmpty else { return }
+        var didUpdate = false
+
+        for index in items.indices {
+            if items[index].isSynced {
+                continue
+            }
+
+            guard let originalImage = items[index].originalImage,
+                  let editedImage = items[index].editedImage else {
+                continue
+            }
+
+            let pairId = items[index].pairId.isEmpty ? items[index].id : items[index].pairId
+
+            do {
+                try await storeCreatedImagePair(
+                    original: originalImage,
+                    created: editedImage,
+                    mode: items[index].mode.rawValue,
+                    pairId: pairId
+                )
+                items[index].pairId = pairId
+                items[index].isSynced = true
+                didUpdate = true
+            } catch {
+                continue
+            }
+        }
+
+        if didUpdate {
+            saveHistoryItems(items)
+        }
+    }
+
+    private func loadHistoryItems() -> [HistoryItem] {
+        guard let data = UserDefaults.standard.data(forKey: "morphed_history"),
+              let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private func saveHistoryItems(_ items: [HistoryItem]) {
+        if let encoded = try? JSONEncoder().encode(items) {
+            UserDefaults.standard.set(encoded, forKey: "morphed_history")
+        }
+    }
     
     func updatePassword(oldPassword: String, newPassword: String) async throws {
         let trimmedOld = oldPassword.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -379,6 +551,34 @@ private struct ProfilePayload: Encodable {
         case phone
         case name
         case avatarURL = "avatar_url"
+    }
+}
+
+private struct CreatedImagePayload: Encodable {
+    let id: String
+    let profileId: String
+    let originalPath: String
+    let createdPath: String
+    let mode: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case profileId = "profile_id"
+        case originalPath = "original_path"
+        case createdPath = "created_path"
+        case mode
+    }
+}
+
+private struct CreatedImageRow: Decodable {
+    let id: String
+    let originalPath: String
+    let createdPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case originalPath = "original_path"
+        case createdPath = "created_path"
     }
 }
 

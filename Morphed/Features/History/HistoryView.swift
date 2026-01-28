@@ -375,10 +375,12 @@ class HistoryViewModel: ObservableObject {
 
 struct HistoryItem: Identifiable, Codable {
     let id: String
+    var pairId: String
     let originalImageData: Data?
     let editedImageData: Data
     let mode: EditorViewModel.EditMode
     let createdAt: Date
+    var isSynced: Bool
     
     var originalImage: UIImage? {
         guard let data = originalImageData else { return nil }
@@ -390,11 +392,36 @@ struct HistoryItem: Identifiable, Codable {
     }
     
     init(originalImage: UIImage?, editedImage: UIImage, mode: EditorViewModel.EditMode) {
-        self.id = UUID().uuidString
+        let newId = UUID().uuidString
+        self.id = newId
+        self.pairId = newId
         self.originalImageData = originalImage?.jpegData(compressionQuality: 0.8)
         self.editedImageData = editedImage.jpegData(compressionQuality: 0.8) ?? Data()
         self.mode = mode
         self.createdAt = Date()
+        self.isSynced = false
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedId = try container.decode(String.self, forKey: .id)
+        id = decodedId
+        pairId = try container.decodeIfPresent(String.self, forKey: .pairId) ?? decodedId
+        originalImageData = try container.decodeIfPresent(Data.self, forKey: .originalImageData)
+        editedImageData = try container.decode(Data.self, forKey: .editedImageData)
+        mode = try container.decode(EditorViewModel.EditMode.self, forKey: .mode)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        isSynced = try container.decodeIfPresent(Bool.self, forKey: .isSynced) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case pairId = "pair_id"
+        case originalImageData
+        case editedImageData
+        case mode
+        case createdAt
+        case isSynced
     }
 }
 
