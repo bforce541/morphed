@@ -28,27 +28,16 @@ struct RootView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var router: AppRouter
     @State private var showOnboarding = false
-    
-    private var hasSeenOnboardingForCurrentUser: Bool {
-        if let userId = authManager.currentUser?.id, !userId.isEmpty {
-            return UserDefaults.standard.bool(forKey: "has_seen_onboarding_\(userId)")
-        } else {
-            // Fallback for pre-existing installs before per-account onboarding
-            return UserDefaults.standard.bool(forKey: "has_seen_onboarding")
-        }
-    }
-    
-    private var shouldShowOnboarding: Bool {
-        // Show onboarding on first successful login per account.
-        authManager.isAuthenticated && !hasSeenOnboardingForCurrentUser
-    }
+    @State private var hasSeenOnboardingForCurrentUser = false
     
     var body: some View {
         Group {
-            if shouldShowOnboarding {
-                OnboardingView(isPresented: $showOnboarding)
-            } else if authManager.isAuthenticated {
-                MainTabView()
+            if authManager.isAuthenticated {
+                if showOnboarding {
+                    OnboardingView(isPresented: $showOnboarding)
+                } else {
+                    MainTabView()
+                }
             } else {
                 LoginView()
             }
@@ -57,7 +46,20 @@ struct RootView: View {
         .animation(DesignSystem.Animation.standard, value: showOnboarding)
         .onChange(of: authManager.isAuthenticated) { isAuthenticated in
             if isAuthenticated {
-                router.navigateToEditor()
+                // Refresh onboarding state for the current user whenever we log in.
+                if let userId = authManager.currentUser?.id, !userId.isEmpty {
+                    hasSeenOnboardingForCurrentUser = UserDefaults.standard.bool(forKey: "has_seen_onboarding_\(userId)")
+                } else {
+                    hasSeenOnboardingForCurrentUser = UserDefaults.standard.bool(forKey: "has_seen_onboarding")
+                }
+                
+                if hasSeenOnboardingForCurrentUser {
+                    // Existing user: go straight into main app.
+                    router.navigateToEditor()
+                } else {
+                    // First login for this account: present onboarding.
+                    showOnboarding = true
+                }
             }
         }
     }

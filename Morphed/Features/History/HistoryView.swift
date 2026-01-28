@@ -389,7 +389,16 @@ class HistoryViewModel: ObservableObject {
     }
 
     private func startListeningForUpdates() {
+        // Listen for UserDefaults changes
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.loadHistory()
+            }
+            .store(in: &cancellables)
+        
+        // Listen for remote history updates
+        NotificationCenter.default.publisher(for: NSNotification.Name("HistoryDidUpdate"))
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.loadHistory()

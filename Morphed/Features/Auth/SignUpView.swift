@@ -66,13 +66,13 @@ struct SignUpView: View {
                                     .focused($focusedField, equals: .name)
                             }
                             
-                            // Email or Phone Field
+                            // Email Field
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Email or Phone")
+                                Text("Email")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.offWhite)
                                 
-                                TextField("", text: $identifier, prompt: Text("Enter your email or phone").foregroundColor(.offWhite.opacity(0.5)))
+                                TextField("", text: $identifier, prompt: Text("Enter your email").foregroundColor(.offWhite.opacity(0.5)))
                                     .textFieldStyle(.plain)
                                     .foregroundColor(.offWhite)
                                     .autocapitalization(.none)

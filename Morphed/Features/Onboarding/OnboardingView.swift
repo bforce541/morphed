@@ -107,6 +107,11 @@ struct OnboardingView: View {
         }
         Haptics.impact(style: .medium)
         isPresented = false
+        
+        // After onboarding finishes, always land the user in the Editor.
+        Task { @MainActor in
+            AppRouter.shared.navigateToEditor()
+        }
     }
 }
 

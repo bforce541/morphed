@@ -244,6 +244,7 @@ final class AuthManager: ObservableObject {
             if lastSyncedUserId != userId {
                 lastSyncedUserId = userId
                 Task { [weak self] in
+                    await self?.loadRemoteHistory(for: userId)
                     await self?.syncLocalHistory(for: userId)
                 }
             }
@@ -304,6 +305,7 @@ final class AuthManager: ObservableObject {
             if lastSyncedUserId != userId {
                 lastSyncedUserId = userId
                 Task { [weak self] in
+                    await self?.loadRemoteHistory(for: userId)
                     await self?.syncLocalHistory(for: userId)
                 }
             }
@@ -543,6 +545,80 @@ final class AuthManager: ObservableObject {
         return "\(part1)-\(part2)-\(part3)-\(part4)-\(part5)"
     }
 
+    private func loadRemoteHistory(for userId: String) async {
+        do {
+            let user = try await requireAuthenticatedUser()
+            let response: PostgrestResponse<[CreatedImageRow]> = try await supabase
+                .from("created_images")
+                .select("id, original_path, created_path, mode, created_at")
+                .eq("profile_id", value: user.id.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+            
+            var remoteItems: [HistoryItem] = []
+            for row in response.value {
+                // Download images from storage
+                do {
+                    let originalFile = try await supabase.storage
+                        .from("morphed-images")
+                        .download(path: row.originalPath)
+                    let createdFile = try await supabase.storage
+                        .from("morphed-images")
+                        .download(path: row.createdPath)
+                    
+                    let originalData = originalFile
+                    let createdData = createdFile
+                    
+                    guard let originalImage = UIImage(data: originalData),
+                          let createdImage = UIImage(data: createdData) else {
+                        continue
+                    }
+                
+                // Parse mode (fallback to presence if missing)
+                let mode: EditorViewModel.EditMode
+                if let modeString = row.mode, let parsedMode = EditorViewModel.EditMode(rawValue: modeString) {
+                    mode = parsedMode
+                } else {
+                    mode = .presence
+                }
+                
+                // Create history item
+                var item = HistoryItem(
+                    originalImage: originalImage,
+                    editedImage: createdImage,
+                    mode: mode
+                )
+                    item.pairId = row.id
+                    item.isSynced = true
+                    remoteItems.append(item)
+                } catch {
+                    // Skip items that fail to download
+                    continue
+                }
+            }
+            
+            // Merge with local history (avoid duplicates by pairId)
+            var localItems = loadHistoryItems()
+            let localPairIds = Set(localItems.map { $0.pairId.isEmpty ? $0.id : $0.pairId })
+            
+            // Add remote items that aren't already in local
+            for remoteItem in remoteItems {
+                let remotePairId = remoteItem.pairId.isEmpty ? remoteItem.id : remoteItem.pairId
+                if !localPairIds.contains(remotePairId) {
+                    localItems.insert(remoteItem, at: 0)
+                }
+            }
+            
+            // Save merged history
+            saveHistoryItems(localItems)
+            
+            // Notify HistoryViewModel to reload
+            NotificationCenter.default.post(name: NSNotification.Name("HistoryDidUpdate"), object: nil)
+        } catch {
+            // Best-effort: if remote load fails, continue with local history
+        }
+    }
+    
     private func syncLocalHistory(for userId: String) async {
         var items = loadHistoryItems()
         guard !items.isEmpty else { return }
@@ -575,6 +651,7 @@ final class AuthManager: ObservableObject {
 
         if didUpdate {
             saveHistoryItems(items)
+            NotificationCenter.default.post(name: NSNotification.Name("HistoryDidUpdate"), object: nil)
         }
     }
 
@@ -690,11 +767,15 @@ private struct CreatedImageRow: Decodable {
     let id: String
     let originalPath: String
     let createdPath: String
+    let mode: String?
+    let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
         case originalPath = "original_path"
         case createdPath = "created_path"
+        case mode
+        case createdAt = "created_at"
     }
 }
 

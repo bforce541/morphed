@@ -132,7 +132,26 @@ class EditorViewModel: ObservableObject {
         }
         
         editedImage = previewImage
-        didSaveToHistory = false
+        hasGeneratedPreview = true
+        
+        // Save to history immediately (even for stub)
+        let historyItem = HistoryItem(
+            originalImage: originalImage,
+            editedImage: previewImage,
+            mode: selectedMode
+        )
+        saveToHistory(historyItem)
+        didSaveToHistory = true
+        
+        // Upload to Supabase in background
+        Task { [originalImage, previewImage, selectedMode, historyId = historyItem.id] in
+            await uploadToSupabase(
+                original: originalImage,
+                created: previewImage,
+                mode: selectedMode,
+                historyId: historyId
+            )
+        }
         
         // Record usage
         UsageTracker.recordMorph(mode: selectedMode)
@@ -140,11 +159,6 @@ class EditorViewModel: ObservableObject {
         
         Haptics.notification(type: .success)
         isLoading = false
-        
-        // Trigger post-generation preview after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.hasGeneratedPreview = true
-        }
     }
     
     // MARK: - Real Generation (for when Gemini is ready)
@@ -312,6 +326,8 @@ class EditorViewModel: ObservableObject {
         items.insert(item, at: 0)
         if let encoded = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(encoded, forKey: "morphed_history")
+            // Notify HistoryViewModel to reload
+            NotificationCenter.default.post(name: NSNotification.Name("HistoryDidUpdate"), object: nil)
         }
     }
 
