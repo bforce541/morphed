@@ -43,7 +43,7 @@ struct EditorView: View {
                         HStack {
                             Text("Editor")
                                 .font(.system(.largeTitle, design: .default, weight: .semibold))
-                                .foregroundColor(.textPrimary)
+                                .foregroundColor(.white)
                             
                             Spacer()
                             

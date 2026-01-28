@@ -272,7 +272,7 @@ struct ProfileView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Profile")
                         .font(.system(.largeTitle, design: .default, weight: .semibold))
-                        .foregroundColor(.titleColor)
+                        .foregroundColor(.white)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {

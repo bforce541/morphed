@@ -112,7 +112,7 @@ struct HistoryView: View {
                 ToolbarItem(placement: .principal) {
                     Text("History")
                         .font(.system(.largeTitle, design: .default, weight: .semibold))
-                        .foregroundColor(.titleColor)
+                        .foregroundColor(.white)
                 }
             }
             .toolbar {
