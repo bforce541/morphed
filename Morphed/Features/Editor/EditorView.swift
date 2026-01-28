@@ -20,9 +20,22 @@ struct EditorView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // Background gradient
-                Color.backgroundGradient
+                // Background gradient - soft radial gradient matching History screen
+                ZStack {
+                    Color.backgroundBottom
+                        .ignoresSafeArea()
+                    
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color.backgroundTop.opacity(0.6),
+                            Color.backgroundBottom
+                        ]),
+                        center: .center,
+                        startRadius: 100,
+                        endRadius: 800
+                    )
                     .ignoresSafeArea()
+                }
                 
                 ScrollView {
                     VStack(spacing: DesignSystem.Spacing.lg) {
