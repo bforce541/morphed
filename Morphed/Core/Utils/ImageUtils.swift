@@ -25,6 +25,13 @@ enum ImageUtils {
         image.draw(in: CGRect(origin: .zero, size: newSize))
         return UIGraphicsGetImageFromCurrentImageContext()
     }
+
+    static func resizeImage(_ image: UIImage, targetSize: CGSize) -> UIImage? {
+        UIGraphicsBeginImageContextWithOptions(targetSize, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        image.draw(in: CGRect(origin: .zero, size: targetSize))
+        return UIGraphicsGetImageFromCurrentImageContext()
+    }
     
     static func compressToJPEG(_ image: UIImage, quality: CGFloat) -> Data? {
         return image.jpegData(compressionQuality: quality)
@@ -42,4 +49,3 @@ enum ImageUtils {
         return UIImage(data: data)
     }
 }
-

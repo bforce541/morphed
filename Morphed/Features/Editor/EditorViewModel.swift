@@ -113,6 +113,17 @@ class EditorViewModel: ObservableObject {
         didSaveToHistory = false
         didUploadToSupabase = false
         isPreviewBlurred = false
+
+        if selectedMode == .presence {
+            let precheck = await PresencePreprocessor.validate(image: originalImage)
+            if !precheck.isValid {
+                errorMessage = precheck.userMessage ?? "Please try another photo."
+                showError = true
+                Haptics.notification(type: .error)
+                isLoading = false
+                return
+            }
+        }
         
         // Simulate processing delay
         try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5 seconds
@@ -173,6 +184,17 @@ class EditorViewModel: ObservableObject {
         isPreviewBlurred = false
         
         do {
+            if selectedMode == .presence {
+                let precheck = await PresencePreprocessor.validate(image: originalImage)
+                if !precheck.isValid {
+                    errorMessage = precheck.userMessage ?? "Please try another photo."
+                    showError = true
+                    Haptics.notification(type: .error)
+                    isLoading = false
+                    return
+                }
+            }
+
             let resizedImage = ImageUtils.resizeImage(originalImage, maxDimension: 1536) ?? originalImage
             guard let jpegData = ImageUtils.compressToJPEG(resizedImage, quality: 0.85) else {
                 throw APIError.encodingFailed
@@ -192,9 +214,12 @@ class EditorViewModel: ObservableObject {
             }
             
             var finalImage = image
+            if selectedMode == .presence, let faceLocked = FaceLockComposer.apply(original: originalImage, edited: image) {
+                finalImage = faceLocked
+            }
             // Apply watermark for free tier / non-premium users.
             if FeatureGates.shouldApplyWatermark() {
-                finalImage = WatermarkRenderer.addWatermark(to: image)
+                finalImage = WatermarkRenderer.addWatermark(to: finalImage)
             }
             
             editedImage = finalImage
@@ -363,22 +388,6 @@ class EditorViewModel: ObservableObject {
             if let encoded = try? JSONEncoder().encode(items) {
                 UserDefaults.standard.set(encoded, forKey: "morphed_history")
             }
-        }
-    }
-}
-
-private extension UIImage {
-    var exifOrientation: Int32 {
-        switch imageOrientation {
-        case .up: return 1
-        case .down: return 3
-        case .left: return 8
-        case .right: return 6
-        case .upMirrored: return 2
-        case .downMirrored: return 4
-        case .leftMirrored: return 5
-        case .rightMirrored: return 7
-        @unknown default: return 1
         }
     }
 }

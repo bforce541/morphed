@@ -1,7 +1,7 @@
 // morphed-backend/src/geminiClient.js
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getPromptForMode } from "./prompts.js";
+import { getConfigForMode } from "./prompts.js";
 
 export async function editImageWithGemini(imageBase64, mode, apiKey) {
     if (!apiKey) {
@@ -11,7 +11,8 @@ export async function editImageWithGemini(imageBase64, mode, apiKey) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = getPromptForMode(mode);
+    const { system, prompt } = getConfigForMode(mode);
+    const combinedPrompt = `${system}\n\n${prompt}`;
 
     const imageData = {
         inlineData: {
@@ -21,7 +22,7 @@ export async function editImageWithGemini(imageBase64, mode, apiKey) {
     };
 
     try {
-        const result = await model.generateContent([prompt, imageData]);
+        const result = await model.generateContent([combinedPrompt, imageData]);
         const response = await result.response;
 
         const candidates = response.candidates;
@@ -56,4 +57,3 @@ export async function editImageWithGemini(imageBase64, mode, apiKey) {
         throw new Error(`Gemini API error: ${error.message}`);
     }
 }
-
