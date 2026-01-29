@@ -115,13 +115,16 @@ class EditorViewModel: ObservableObject {
         isPreviewBlurred = false
 
         if selectedMode == .presence {
-            let precheck = await PresencePreprocessor.validate(image: originalImage)
+            let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
             if !precheck.isValid {
-                errorMessage = precheck.userMessage ?? "Please try another photo."
+                errorMessage = precheck.blockingMessage ?? "Please try another photo."
                 showError = true
                 Haptics.notification(type: .error)
                 isLoading = false
                 return
+            }
+            if let warning = precheck.warningMessages.first {
+                showToast(message: warning)
             }
         }
         
@@ -185,13 +188,16 @@ class EditorViewModel: ObservableObject {
         
         do {
             if selectedMode == .presence {
-                let precheck = await PresencePreprocessor.validate(image: originalImage)
+                let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
                 if !precheck.isValid {
-                    errorMessage = precheck.userMessage ?? "Please try another photo."
+                    errorMessage = precheck.blockingMessage ?? "Please try another photo."
                     showError = true
                     Haptics.notification(type: .error)
                     isLoading = false
                     return
+                }
+                if let warning = precheck.warningMessages.first {
+                    showToast(message: warning)
                 }
             }
 

@@ -6,26 +6,65 @@ import ImageIO
 
 struct PresencePrecheckResult {
     let isValid: Bool
-    let userMessage: String?
+    let blockingMessage: String?
+    let warningMessages: [String]
     let debugInfo: String?
 }
 
 enum PresencePreprocessor {
-    struct Thresholds {
-        let minFaceAreaFraction: CGFloat = 0.08
-        let maxFaceAreaFraction: CGFloat = 0.35
-        let faceEdgeInset: CGFloat = 0.02
-        let maxYawRadians: CGFloat = 0.35
-        let maxRollRadians: CGFloat = 0.35
-        let minBrightness: CGFloat = 0.35
-        let minLaplacianVariance: CGFloat = 80
-        let minShoulderConfidence: Float = 0.3
+    enum Profile {
+        case strict
+        case candid
     }
 
-    static func validate(image: UIImage, thresholds: Thresholds = Thresholds()) async -> PresencePrecheckResult {
+    struct Thresholds {
+        let minFaceAreaFraction: CGFloat
+        let maxFaceAreaFraction: CGFloat
+        let faceEdgeInset: CGFloat
+        let maxYawRadians: CGFloat
+        let maxRollRadians: CGFloat
+        let minBrightness: CGFloat
+        let warnLaplacianVariance: CGFloat
+        let hardLaplacianVariance: CGFloat
+        let minShoulderConfidence: Float
+    }
+
+    private static func thresholds(for profile: Profile) -> Thresholds {
+        switch profile {
+        case .strict:
+            return Thresholds(
+                minFaceAreaFraction: 0.08,
+                maxFaceAreaFraction: 0.35,
+                faceEdgeInset: 0.02,
+                maxYawRadians: 0.35,
+                maxRollRadians: 0.35,
+                minBrightness: 0.35,
+                warnLaplacianVariance: 80,
+                hardLaplacianVariance: 30,
+                minShoulderConfidence: 0.30
+            )
+        case .candid:
+            return Thresholds(
+                minFaceAreaFraction: 0.04,
+                maxFaceAreaFraction: 0.45,
+                faceEdgeInset: 0.005,
+                maxYawRadians: 0.60,
+                maxRollRadians: 0.60,
+                minBrightness: 0.25,
+                warnLaplacianVariance: 40,
+                hardLaplacianVariance: 15,
+                minShoulderConfidence: 0.15
+            )
+        }
+    }
+
+    static func validate(image: UIImage, profile: Profile = .candid) async -> PresencePrecheckResult {
         await Task.detached(priority: .userInitiated) {
+            let thresholds = thresholds(for: profile)
+            var warnings: [String] = []
+
             guard let cgImage = image.cgImage else {
-                return PresencePrecheckResult(isValid: false, userMessage: "We couldn't read this photo. Try a different image file.", debugInfo: "missing_cgimage")
+                return PresencePrecheckResult(isValid: false, blockingMessage: "We couldn't read this photo. Try a different image file.", warningMessages: [], debugInfo: "missing_cgimage")
             }
 
             let handler = VNImageRequestHandler(
@@ -40,15 +79,15 @@ enum PresencePreprocessor {
             do {
                 try handler.perform([faceRequest, poseRequest])
             } catch {
-                return PresencePrecheckResult(isValid: false, userMessage: "We couldn't analyze the photo. Try retaking it in good light.", debugInfo: "vision_error")
+                return PresencePrecheckResult(isValid: false, blockingMessage: "We couldn't analyze the photo. Try retaking it in good light.", warningMessages: [], debugInfo: "vision_error")
             }
 
             let faces = (faceRequest.results as? [VNFaceObservation]) ?? []
             if faces.isEmpty {
-                return PresencePrecheckResult(isValid: false, userMessage: "No face detected. Face the camera and make sure your face is visible.", debugInfo: "no_face")
+                return PresencePrecheckResult(isValid: false, blockingMessage: "No face detected. Face the camera and make sure your face is visible.", warningMessages: [], debugInfo: "no_face")
             }
             if faces.count > 1 {
-                return PresencePrecheckResult(isValid: false, userMessage: "Only one person should be in the photo. Try a solo shot.", debugInfo: "multiple_faces")
+                return PresencePrecheckResult(isValid: false, blockingMessage: "Only one person should be in the photo. Try a solo shot.", warningMessages: [], debugInfo: "multiple_faces")
             }
 
             let face = faces[0]
@@ -56,49 +95,54 @@ enum PresencePreprocessor {
             let faceArea = bbox.width * bbox.height
 
             if faceArea < thresholds.minFaceAreaFraction {
-                return PresencePrecheckResult(isValid: false, userMessage: "Move closer to the camera so your face is larger in frame.", debugInfo: "face_too_small")
+                warnings.append("Try moving closer so your face is larger in frame for better results.")
             }
             if faceArea > thresholds.maxFaceAreaFraction {
-                return PresencePrecheckResult(isValid: false, userMessage: "Move farther back so more of your upper body is visible.", debugInfo: "face_too_large")
+                warnings.append("Try moving farther back so more of your upper body is visible for better results.")
             }
 
             if bbox.minX < thresholds.faceEdgeInset ||
                 bbox.minY < thresholds.faceEdgeInset ||
                 (bbox.maxX) > (1 - thresholds.faceEdgeInset) ||
                 (bbox.maxY) > (1 - thresholds.faceEdgeInset) {
-                return PresencePrecheckResult(isValid: false, userMessage: "Keep your full face in frame (don’t crop the forehead or chin).", debugInfo: "face_clipped")
+                warnings.append("Try keeping your full face in frame (don’t crop the forehead or chin) for better results.")
             }
 
             if let yaw = face.yaw?.doubleValue, abs(yaw) > Double(thresholds.maxYawRadians) {
-                return PresencePrecheckResult(isValid: false, userMessage: "Face the camera directly (don’t turn sideways).", debugInfo: "yaw_exceeded")
+                warnings.append("Try facing the camera more directly (don’t turn sideways) for better results.")
             }
             if let roll = face.roll?.doubleValue, abs(roll) > Double(thresholds.maxRollRadians) {
-                return PresencePrecheckResult(isValid: false, userMessage: "Keep your head level (avoid tilting).", debugInfo: "roll_exceeded")
+                warnings.append("Try keeping your head level (avoid tilting) for better results.")
             }
 
             if let poseObs = (poseRequest.results as? [VNHumanBodyPoseObservation])?.first {
                 let points = try? poseObs.recognizedPoints(.all)
                 let left = points?[.leftShoulder]
                 let right = points?[.rightShoulder]
-                if left?.confidence ?? 0 < thresholds.minShoulderConfidence ||
-                    right?.confidence ?? 0 < thresholds.minShoulderConfidence {
-                    return PresencePrecheckResult(isValid: false, userMessage: "Include both shoulders in the frame.", debugInfo: "shoulders_missing")
+                let leftConfidence = left?.confidence ?? 0
+                let rightConfidence = right?.confidence ?? 0
+                if leftConfidence < thresholds.minShoulderConfidence ||
+                    rightConfidence < thresholds.minShoulderConfidence {
+                    warnings.append("Try to include your shoulders in frame for better results.")
                 }
             } else {
-                return PresencePrecheckResult(isValid: false, userMessage: "Include your upper torso in the frame (head + shoulders).", debugInfo: "no_pose")
+                warnings.append("Try to include your upper torso in frame (head + shoulders) for better results.")
             }
 
             if let brightness = ImageQualityAnalyzer.averageLuminance(for: image),
                brightness < thresholds.minBrightness {
-                return PresencePrecheckResult(isValid: false, userMessage: "Add more light so your face and shoulders are clearly visible.", debugInfo: "low_brightness")
+                warnings.append("Try adding more light so your face and shoulders are clearly visible for better results.")
             }
 
             if let variance = ImageQualityAnalyzer.laplacianVariance(for: image),
-               variance < thresholds.minLaplacianVariance {
-                return PresencePrecheckResult(isValid: false, userMessage: "Photo is too blurry. Hold the camera steady and refocus.", debugInfo: "too_blurry")
+               variance < thresholds.hardLaplacianVariance {
+                return PresencePrecheckResult(isValid: false, blockingMessage: "Photo is too blurry. Hold the camera steady and refocus.", warningMessages: [], debugInfo: "too_blurry_hard")
+            } else if let variance = ImageQualityAnalyzer.laplacianVariance(for: image),
+                      variance < thresholds.warnLaplacianVariance {
+                warnings.append("Photo looks a bit soft—try to hold steady for a sharper shot for better results.")
             }
 
-            return PresencePrecheckResult(isValid: true, userMessage: nil, debugInfo: "ok")
+            return PresencePrecheckResult(isValid: true, blockingMessage: nil, warningMessages: warnings, debugInfo: "ok")
         }.value
     }
 }
