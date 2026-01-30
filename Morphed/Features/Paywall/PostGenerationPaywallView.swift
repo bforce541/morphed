@@ -6,9 +6,12 @@ struct PostGenerationPaywallView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @StateObject private var router = AppRouter.shared
+    @StateObject private var authManager = AuthManager.shared
     
-    @State private var selectedPlan: PricingPlanID = .weekly
+    @State private var selectedPlan: PricingPlanID = .proMonthly
     @State private var isProcessing = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationView {
@@ -39,29 +42,29 @@ struct PostGenerationPaywallView: View {
                     
                     // Pricing Cards (Simplified - just Pro and Premium)
                     VStack(spacing: DesignSystem.Spacing.md) {
-                        if let weekly = PricingModels.all.first(where: { $0.id == .weekly }) {
+                        if let proMonthly = PricingModels.all.first(where: { $0.id == .proMonthly }) {
                             PricingCard(
-                                plan: weekly,
-                                isSelected: selectedPlan == .weekly,
+                                plan: proMonthly,
+                                isSelected: selectedPlan == .proMonthly,
                                 isDominant: true
                             )
                             .onTapGesture {
                                 withAnimation(DesignSystem.Animation.standard) {
-                                    selectedPlan = .weekly
+                                    selectedPlan = .proMonthly
                                 }
                                 Haptics.impact(style: .light)
                             }
                         }
                         
-                        if let pro = PricingModels.all.first(where: { $0.id == .monthlyPro }) {
+                        if let premiumMonthly = PricingModels.all.first(where: { $0.id == .premiumMonthly }) {
                             PricingCard(
-                                plan: pro,
-                                isSelected: selectedPlan == .monthlyPro,
+                                plan: premiumMonthly,
+                                isSelected: selectedPlan == .premiumMonthly,
                                 isDominant: false
                             )
                             .onTapGesture {
                                 withAnimation(DesignSystem.Animation.standard) {
-                                    selectedPlan = .monthlyPro
+                                    selectedPlan = .premiumMonthly
                                 }
                                 Haptics.impact(style: .light)
                             }
@@ -106,35 +109,57 @@ struct PostGenerationPaywallView: View {
                     .foregroundColor(.textPrimary)
                 }
             }
+            .alert("Purchase Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
     private func handlePurchase() {
+        guard !isProcessing else { return }
         Haptics.impact(style: .medium)
         isProcessing = true
-        
+
         Task {
-            let userId = AuthManager.shared.currentUser?.email ?? 
-                        AuthManager.shared.currentUser?.id ?? 
-                        "anonymous"
-            
-            await StripePaymentHandler.shared.presentCheckout(
-                for: selectedPlan,
-                userId: userId,
-                onSuccess: {
-                    let tier: SubscriptionTier = selectedPlan == .weekly ? .weekly : .monthlyPro
-                    subscriptionManager.updateSubscriptionTier(tier)
-                    AnalyticsTracker.track("purchase_\(selectedPlan == .weekly ? "pro" : "premium")_post_gen", properties: nil)
+            guard let productID = IAPProductID.productID(for: selectedPlan) else {
+                isProcessing = false
+                return
+            }
+            // Use Supabase UUID only (no email fallback).
+            guard let userId = authManager.currentUser?.id, !userId.isEmpty else {
+                errorMessage = "Please log in again to complete purchase sync."
+                showError = true
+                isProcessing = false
+                return
+            }
+
+            switch await IAPManager.shared.purchase(productID: productID) {
+            case .success(let payload):
+                do {
+                    let response = try await EntitlementService.verifyAppleTransaction(
+                        userId: userId,
+                        signedTransactionInfo: payload.jwsRepresentation,
+                        environment: payload.environment
+                    )
+                    subscriptionManager.applyEntitlementResponse(response)
+                    AnalyticsTracker.track("purchase_\(selectedPlan == .proMonthly ? "pro" : "premium")_post_gen", properties: nil)
                     Haptics.notification(type: .success)
-                    isProcessing = false
                     dismiss()
-                },
-                onFailure: { error in
-                    print("Stripe checkout failed: \(error.localizedDescription)")
+                } catch {
+                    errorMessage = "Purchase completed but sync failed: \(error.localizedDescription)"
+                    showError = true
                     Haptics.notification(type: .error)
-                    isProcessing = false
                 }
-            )
+            case .userCancelled:
+                break
+            case .pending:
+                break
+            case .failed:
+                Haptics.notification(type: .error)
+            }
+            isProcessing = false
         }
     }
 }

@@ -4,8 +4,8 @@ import Foundation
 
 enum PricingPlanID: String {
     case free
-    case weekly
-    case monthlyPro
+    case proMonthly      // Pro (monthly billing)
+    case premiumMonthly  // Premium (monthly billing)
 }
 
 struct PricingPlan {
@@ -38,11 +38,11 @@ enum PricingModels {
         cancelText: nil
     )
     
-    static let weekly = PricingPlan(
-        id: .weekly,
+    static let proMonthly = PricingPlan(
+        id: .proMonthly,
         title: "Pro",
         subtitle: "Unlimited HD morphs",
-        priceText: "$6.99 / week",
+        priceText: "$6.99 / month",
         badgeText: "MOST POPULAR",
         isHighlighted: true,
         bulletPoints: [
@@ -55,8 +55,8 @@ enum PricingModels {
         cancelText: "Cancel anytime · No questions asked"
     )
     
-    static let monthlyPro = PricingPlan(
-        id: .monthlyPro,
+    static let premiumMonthly = PricingPlan(
+        id: .premiumMonthly,
         title: "Premium",
         subtitle: "For creators & power users",
         priceText: "$11.99 / month",
@@ -72,8 +72,8 @@ enum PricingModels {
     )
     
     static let all: [PricingPlan] = [
-        weekly,      // Most popular first
-        monthlyPro,
+        proMonthly,      // Most popular first
+        premiumMonthly,
         free         // Free last
     ]
 }

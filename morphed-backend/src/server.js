@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import { editImageWithGemini } from "./geminiClient.js";
 import { validateEditRequest } from "./validate.js";
 import { createCheckoutSession, verifyWebhookSignature } from "./stripeClient.js";
+import { verifyTransaction } from "./appleVerify.js";
+import { upsertEntitlement, getEntitlement } from "./entitlementsStore.js";
 
 dotenv.config();
 
@@ -142,16 +144,88 @@ app.post("/referral", (req, res) => {
     return res.json({ ok: true });
 });
 
-// Basic entitlements endpoint – currently always returns "free" tier.
-app.get("/entitlements", (req, res) => {
+// Entitlements endpoint – source of truth for gating. Reads from store (Apple IAP or legacy).
+// Query: user_id (required, must be UUID). Returns free tier if invalid/missing.
+app.get("/entitlements", async (req, res) => {
     const { requestId } = req;
-    console.log(`[${requestId}] /entitlements (static free tier)`);
+    const userId = req.query.user_id || req.body?.user_id || "";
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!userId || !uuidRegex.test(userId)) {
+        console.log(`[${requestId}] /entitlements (invalid/missing user_id – free tier)`);
+        return res.json({
+            tier: "free",
+            canUseMaxMode: false,
+            canExportHD: false,
+            remainingPremiumRenders: 0,
+            isPro: false
+        });
+    }
+    const ent = await getEntitlement(userId);
+    const isPro = ent.isPro && (!ent.expires_at || ent.expires_at > Math.floor(Date.now() / 1000));
+    console.log(`[${requestId}] /entitlements user_id=${userId} tier=${ent.plan} isPro=${isPro}`);
     return res.json({
-        tier: "free",
-        canUseMaxMode: false,
-        canExportHD: false,
-        remainingPremiumRenders: 0
+        tier: ent.plan,
+        canUseMaxMode: isPro,
+        canExportHD: isPro,
+        remainingPremiumRenders: isPro ? 999999 : 0,
+        isPro,
+        expiresAt: ent.expires_at || null
     });
+});
+
+// Apple IAP: verify JWS and update entitlements. Do NOT trust client isPro – only Apple verification.
+app.post("/iap/apple/verify", async (req, res) => {
+    const { requestId } = req;
+    try {
+        const { user_id, signed_transaction_info, environment } = req.body || {};
+        if (!user_id) {
+            return res.status(400).json({
+                error: { code: "BAD_REQUEST", message: "user_id is required" }
+            });
+        }
+        // Validate user_id is UUID format (Supabase UUIDs are standard UUIDs)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(user_id)) {
+            return res.status(400).json({
+                error: { code: "BAD_REQUEST", message: "user_id must be a valid UUID" }
+            });
+        }
+        if (!signed_transaction_info) {
+            return res.status(400).json({
+                error: { code: "BAD_REQUEST", message: "signed_transaction_info (JWS) is required" }
+            });
+        }
+        console.log(`[${requestId}] IAP verify user_id=${user_id} env=${environment || "auto"}`);
+        const verified = await verifyTransaction(signed_transaction_info, environment);
+        const row = await upsertEntitlement(user_id, {
+            plan: verified.plan,
+            expiresDate: verified.expiresDate,
+            originalTransactionId: verified.originalTransactionId,
+            productId: verified.productId,
+            environment: environment || "Production"
+        });
+        console.log(`[${requestId}] IAP verified plan=${verified.plan} originalTxId=${verified.originalTransactionId}`);
+        const isPro = row.isPro && (!row.expires_at || row.expires_at > Math.floor(Date.now() / 1000));
+        return res.json({
+            tier: row.plan,
+            isPro,
+            canUseMaxMode: isPro,
+            canExportHD: isPro,
+            remainingPremiumRenders: isPro ? 999999 : 0,
+            expiresAt: row.expires_at,
+            appleOriginalTransactionId: row.apple_original_transaction_id,
+            appleProductId: row.apple_product_id
+        });
+    } catch (error) {
+        console.error(`[${requestId}] IAP verify error:`, error.message);
+        return res.status(400).json({
+            error: {
+                code: "VERIFICATION_FAILED",
+                message: error.message || "Apple transaction verification failed"
+            }
+        });
+    }
 });
 
 // Stripe Checkout Session Creation
@@ -261,6 +335,12 @@ app.post("/stripe/webhook", async (req, res) => {
         res.status(400).json({ error: `Webhook Error: ${error.message}` });
     }
 });
+
+// Apple App Store Server Notifications (optional, for subscription lifecycle).
+// When configured in App Store Connect, Apple sends server-to-server notifications (renewal, cancel, etc.).
+// POST /iap/apple/notifications — verify signedPayload with appleVerify, then update entitlementsStore.
+// Placeholder: rely on app verification on purchase/restore/open + periodic entitlement refresh for now.
+// See: https://developer.apple.com/documentation/appstoreservernotifications
 
 app.get("/health", (req, res) => {
     res.json({

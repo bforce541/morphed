@@ -77,7 +77,7 @@ class StripePaymentHandler: NSObject {
         if url.host == "stripe-success" {
             safariViewController?.dismiss(animated: true) {
                 if let planID = self.currentPlanID {
-                    let tier: SubscriptionTier = planID == .weekly ? .weekly : .monthlyPro
+                    let tier: SubscriptionTier = planID == .proMonthly ? .proMonthly : .premiumMonthly
                     SubscriptionManager.shared.updateSubscriptionTier(tier)
                 }
                 self.onSuccess?()

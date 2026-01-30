@@ -4,11 +4,26 @@ import Foundation
 import Combine
 
 /// High-level subscription / credits tier for the current device.
-/// This is intentionally local-only and uses UserDefaults – no real auth or billing.
+/// Monthly-only plans: proMonthly (Pro), premiumMonthly (Premium).
+/// Backward compatibility: accepts old "weekly" and "monthlyPro" strings for migration, maps to new values.
 enum SubscriptionTier: String, Codable {
     case free
-    case weekly
-    case monthlyPro
+    case proMonthly      // Pro (monthly)
+    case premiumMonthly  // Premium (monthly)
+    
+    /// Backward compatibility: parse old tier strings and map to new ones.
+    init?(rawValue: String) {
+        switch rawValue {
+        case "free":
+            self = .free
+        case "proMonthly", "weekly":  // Map old "weekly" to "proMonthly"
+            self = .proMonthly
+        case "premiumMonthly", "monthlyPro":  // Map old "monthlyPro" to "premiumMonthly"
+            self = .premiumMonthly
+        default:
+            return nil
+        }
+    }
 }
 
 struct SubscriptionState: Codable {
@@ -79,15 +94,7 @@ final class SubscriptionManager: ObservableObject {
         switch state.tier {
         case .free:
             return .free(remainingPremiumRenders: state.remainingPremiumRenders)
-        case .weekly:
-            return Entitlements(
-                canUseAllUpgradeModes: true,
-                canRemoveWatermark: true,
-                canExportHD: true,
-                hasUnlimitedRenders: true,
-                remainingPremiumRenders: .max
-            )
-        case .monthlyPro:
+        case .proMonthly, .premiumMonthly:
             return Entitlements(
                 canUseAllUpgradeModes: true,
                 canRemoveWatermark: true,
@@ -152,29 +159,61 @@ final class SubscriptionManager: ObservableObject {
     
     // MARK: - Purchases
     
+    func purchaseProMonthlyMock() {
+        state.tier = .proMonthly
+        state.remainingPremiumRenders = .max
+        state.hasCompletedMockPurchase = true
+        persist()
+    }
+    
+    func purchasePremiumMonthlyMock() {
+        state.tier = .premiumMonthly
+        state.remainingPremiumRenders = .max
+        state.hasCompletedMockPurchase = true
+        persist()
+    }
+    
+    // Legacy method names (kept for backward compatibility)
+    @available(*, deprecated, renamed: "purchaseProMonthlyMock")
     func purchaseWeeklyMock() {
-        state.tier = .weekly
-        state.remainingPremiumRenders = .max
-        state.hasCompletedMockPurchase = true
-        persist()
+        purchaseProMonthlyMock()
     }
     
+    @available(*, deprecated, renamed: "purchasePremiumMonthlyMock")
     func purchaseMonthlyProMock() {
-        state.tier = .monthlyPro
-        state.remainingPremiumRenders = .max
-        state.hasCompletedMockPurchase = true
-        persist()
+        purchasePremiumMonthlyMock()
     }
     
-    /// Update subscription tier after successful Stripe purchase
+    /// Update subscription tier (e.g. after successful IAP + backend verify). Prefer refreshing from backend.
     func updateSubscriptionTier(_ tier: SubscriptionTier) {
         state.tier = tier
         state.remainingPremiumRenders = .max
         state.hasCompletedMockPurchase = true
         persist()
     }
-    
-    
+
+    /// Apply backend entitlement response (source of truth). Use after fetch or IAP verify.
+    func applyEntitlementResponse(_ response: EntitlementResponse) {
+        let tier = SubscriptionTier(rawValue: response.tier) ?? .free
+        state.tier = tier
+        state.remainingPremiumRenders = response.remainingPremiumRenders ?? (tier == .free ? 0 : .max)
+        if tier != .free {
+            state.hasCompletedMockPurchase = true
+        }
+        persist()
+    }
+
+    /// Refresh entitlements from backend. Call on launch (with userId) and after IAP purchase/restore.
+    func refreshEntitlements(userId: String) async {
+        guard !userId.isEmpty else { return }
+        do {
+            let response = try await EntitlementService.fetchEntitlements(userId: userId)
+            applyEntitlementResponse(response)
+        } catch {
+            // Keep existing local state on network failure (offline / migration-safe)
+        }
+    }
+
     func resetToFree() {
         state = SubscriptionState(
             tier: .free,

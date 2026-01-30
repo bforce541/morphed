@@ -15,7 +15,7 @@ struct MorphedApp: App {
                 .environmentObject(subscriptionManager)
                 .environmentObject(router)
                 .onOpenURL { url in
-                    StripePaymentHandler.shared.handleDeepLink(url: url)
+                    // Auth callback only. iOS purchase flow uses StoreKit 2 + backend verify (no Stripe deep link).
                     Task {
                         await authManager.handleAuthCallback(url: url)
                     }
@@ -26,6 +26,7 @@ struct MorphedApp: App {
 
 struct RootView: View {
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var router: AppRouter
     @State private var showOnboarding = false
     @State private var hasSeenOnboardingForCurrentUser = false
@@ -46,19 +47,28 @@ struct RootView: View {
         .animation(DesignSystem.Animation.standard, value: showOnboarding)
         .onChange(of: authManager.isAuthenticated) { isAuthenticated in
             if isAuthenticated {
-                // Refresh onboarding state for the current user whenever we log in.
+                // Refresh entitlements from backend (source of truth) when user logs in.
                 if let userId = authManager.currentUser?.id, !userId.isEmpty {
+                    Task {
+                        await subscriptionManager.refreshEntitlements(userId: userId)
+                    }
                     hasSeenOnboardingForCurrentUser = UserDefaults.standard.bool(forKey: "has_seen_onboarding_\(userId)")
                 } else {
                     hasSeenOnboardingForCurrentUser = UserDefaults.standard.bool(forKey: "has_seen_onboarding")
                 }
-                
+
                 if hasSeenOnboardingForCurrentUser {
-                    // Existing user: go straight into main app.
                     router.navigateToEditor()
                 } else {
-                    // First login for this account: present onboarding.
                     showOnboarding = true
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Refresh entitlements when app becomes active (recovery for failed syncs)
+            if authManager.isAuthenticated, let userId = authManager.currentUser?.id, !userId.isEmpty {
+                Task {
+                    await subscriptionManager.refreshEntitlements(userId: userId)
                 }
             }
         }

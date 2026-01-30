@@ -12,9 +12,9 @@ enum StripeConfig {
         switch planID {
         case .free:
             return nil
-        case .weekly:
+        case .proMonthly:
             return priceIdPro
-        case .monthlyPro:
+        case .premiumMonthly:
             return priceIdPremium
         }
     }
