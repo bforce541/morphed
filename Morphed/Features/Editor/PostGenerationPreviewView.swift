@@ -14,6 +14,9 @@ struct PostGenerationPreviewView: View {
     
     @State private var showUpgradeModal = false
     @State private var displayImage: UIImage
+    @State private var showSaveSuccess = false
+    @State private var showSaveError = false
+    @State private var saveErrorMessage: String?
     
     init(previewImage: UIImage, originalImage: UIImage?, mode: EditorViewModel.EditMode) {
         self.previewImage = previewImage
@@ -63,7 +66,15 @@ struct PostGenerationPreviewView: View {
                         ) {
                             Haptics.impact(style: .medium)
                             Task {
-                                try? await PhotoSaver.saveImage(previewImage)
+                                do {
+                                    try await PhotoSaver.saveImage(previewImage)
+                                    showSaveSuccess = true
+                                    Haptics.notification(type: .success)
+                                } catch {
+                                    saveErrorMessage = error.localizedDescription
+                                    showSaveError = true
+                                    Haptics.notification(type: .error)
+                                }
                             }
                         }
                     }
@@ -80,6 +91,20 @@ struct PostGenerationPreviewView: View {
                 .padding(DesignSystem.Spacing.md)
                 .background(Color.backgroundBottom.opacity(0.95))
             }
+        }
+        .alert("Success", isPresented: $showSaveSuccess) {
+            Button("OK", role: .cancel) {
+                NotificationCenter.default.post(name: .editorClearImageAndReturn, object: nil)
+                router.navigateToEditor()
+                dismiss()
+            }
+        } message: {
+            Text("Image saved to Photos")
+        }
+        .alert("Error", isPresented: $showSaveError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(saveErrorMessage ?? "An unknown error occurred")
         }
         .sheet(isPresented: $showUpgradeModal) {
             PostGenerationPaywallView()

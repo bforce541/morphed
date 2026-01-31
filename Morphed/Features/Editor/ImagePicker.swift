@@ -44,7 +44,10 @@ struct ImagePicker: UIViewControllerRepresentable {
             result.itemProvider.loadObject(ofClass: UIImage.self) { image, error in
                 DispatchQueue.main.async {
                     if let image = image as? UIImage {
-                        self.parent.selectedImage = image
+                        let normalized = ImageUtils.normalizeOrientation(image) ?? image
+                        let targetAspect = ImageUtils.closestStandardAspect(for: normalized)
+                        let cropped = ImageUtils.cropToAspect(normalized, aspectRatio: targetAspect) ?? normalized
+                        self.parent.selectedImage = cropped
                     }
                     self.parent.onDismiss?()
                 }
@@ -52,4 +55,3 @@ struct ImagePicker: UIViewControllerRepresentable {
         }
     }
 }
-

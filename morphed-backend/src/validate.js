@@ -3,7 +3,7 @@
 const MAX_IMAGE_SIZE_BYTES = 6 * 1024 * 1024; // 6MB
 
 // Valid edit modes (source of truth: iOS app)
-const VALID_MODES = ["presence", "physique", "face", "style"];
+const VALID_MODES = ["presence", "physique", "face", "professionality"];
 
 export function validateEditRequest(body) {
     if (!body) {

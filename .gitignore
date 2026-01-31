@@ -4,5 +4,9 @@ Morphed/Config/Secrets.xcconfig
 supabase/.temp/
 Morphed.xcodeproj/project.xcworkspace/xcshareddata/
 
+# Dependencies
+**/node_modules/
+
 # Backend environment files
 morphed-backend/.env
+.package-lock.json

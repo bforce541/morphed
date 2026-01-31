@@ -3,6 +3,10 @@
 import SwiftUI
 import PhotosUI
 
+extension Notification.Name {
+    static let editorClearImageAndReturn = Notification.Name("editorClearImageAndReturn")
+}
+
 struct EditorView: View {
     @StateObject private var viewModel = EditorViewModel()
     @EnvironmentObject private var router: AppRouter
@@ -201,6 +205,42 @@ struct EditorView: View {
                             .stroke(Color.primaryAccent.opacity(0.3), lineWidth: 1)
                     )
                 }
+
+                // Precheck Warning Overlay
+                if viewModel.showWarningPrompt, let warning = viewModel.warningMessage {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        Text("Photo Quality Warning")
+                            .font(.system(.headline, design: .default, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+
+                        Text(warning)
+                            .font(.system(.subheadline, design: .default))
+                            .foregroundColor(.textSecondary)
+                            .multilineTextAlignment(.center)
+
+                        HStack(spacing: DesignSystem.Spacing.sm) {
+                            MorphedButton("Upgrade anyway", icon: "sparkles", style: .primary) {
+                                viewModel.resolveWarningDecision(proceed: true)
+                            }
+
+                            MorphedButton("Retry", icon: "arrow.counterclockwise", style: .secondary) {
+                                viewModel.resolveWarningDecision(proceed: false)
+                                viewModel.clearSelectedImage()
+                            }
+                        }
+                    }
+                    .padding(DesignSystem.Spacing.lg)
+                    .background(Color.cardBackground)
+                    .cornerRadius(DesignSystem.CornerRadius.lg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.lg)
+                            .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+                }
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $viewModel.showImagePicker, onDismiss: { viewModel.showImagePicker = false }) {
@@ -228,7 +268,9 @@ struct EditorView: View {
             }
             .toast(message: viewModel.toastMessage, isPresented: $viewModel.showToast)
             .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {
+                    viewModel.clearSelectedImage()
+                }
             } message: {
                 Text(viewModel.errorMessage ?? "An unknown error occurred")
             }
@@ -253,6 +295,10 @@ struct EditorView: View {
                 if newValue != nil && viewModel.selectedMode == nil {
                     viewModel.selectedMode = defaultEditMode
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .editorClearImageAndReturn)) { _ in
+                viewModel.clearSelectedImage()
+                router.navigateToEditor()
             }
         }
     }
@@ -347,8 +393,9 @@ struct ImageCard: View {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .cornerRadius(DesignSystem.CornerRadius.md)
-                        .frame(maxHeight: 420)
+                        .frame(maxWidth: .infinity, maxHeight: 420)
+                        .padding(DesignSystem.Spacing.sm)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md))
                     
                     if let onRemove = onRemove {
                         Button(action: {

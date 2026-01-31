@@ -21,19 +21,24 @@ class EditorViewModel: ObservableObject {
     @Published var didSaveToHistory = false
     @Published var didUploadToSupabase = false
     @Published var isPreviewBlurred = false
+    @Published var precheckDebugInfo: String?
+    @Published var warningMessage: String?
+    @Published var showWarningPrompt = false
+
+    private var warningContinuation: CheckedContinuation<Bool, Never>?
     
     enum EditMode: String, CaseIterable, Codable {
         case presence = "presence"
         case physique = "physique"
         case face = "face"
-        case style = "style"
+        case professionality = "professionality"
         
         var displayName: String {
             switch self {
             case .presence: return "Presence"
             case .physique: return "Physique"
             case .face: return "Face"
-            case .style: return "Style"
+            case .professionality: return "Professionality"
             }
         }
         
@@ -42,7 +47,7 @@ class EditorViewModel: ObservableObject {
             case .presence: return "Optimized posture, proportions, and framing"
             case .physique: return "Visual definition through lighting, shadows, and fit"
             case .face: return "Structure & clarity enhancement"
-            case .style: return "Outfit sharpness & silhouette"
+            case .professionality: return "Polished, professional presentation"
             }
         }
         
@@ -65,10 +70,10 @@ class EditorViewModel: ObservableObject {
                 "Eye clarity",
                 "Skin texture polish"
             ]
-            case .style: return [
-                "Better drape",
+            case .professionality: return [
+                "Polished appearance",
                 "Cleaner lines",
-                "Contrast + texture pop"
+                "Subtle contrast refinement"
             ]
             }
         }
@@ -78,7 +83,7 @@ class EditorViewModel: ObservableObject {
             case .presence: return "figure.stand"
             case .physique: return "dumbbell"
             case .face: return "face.smiling"
-            case .style: return "tshirt"
+            case .professionality: return "briefcase"
             }
         }
         
@@ -89,9 +94,10 @@ class EditorViewModel: ObservableObject {
             case "presence": self = .presence
             case "physique": self = .physique
             case "face": self = .face
-            case "style": self = .style
+            case "style": self = .professionality
+            case "professionality": self = .professionality
             case "max": self = .presence
-            case "clean": self = .style
+            case "clean": self = .professionality
             default: self = .presence
             }
         }
@@ -100,6 +106,10 @@ class EditorViewModel: ObservableObject {
             var c = encoder.singleValueContainer()
             try c.encode(rawValue)
         }
+    }
+
+    private func requiresPresencePrecheck(for mode: EditMode) -> Bool {
+        mode == .presence || mode == .face || mode == .professionality
     }
     
     // MARK: - Stubbed Generation
@@ -110,13 +120,15 @@ class EditorViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        precheckDebugInfo = nil
         didSaveToHistory = false
         didUploadToSupabase = false
         isPreviewBlurred = false
 
-        if selectedMode == .presence {
+        if requiresPresencePrecheck(for: selectedMode) {
             let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
             if !precheck.isValid {
+                precheckDebugInfo = precheck.debugInfo
                 errorMessage = precheck.blockingMessage ?? "Please try another photo."
                 showError = true
                 Haptics.notification(type: .error)
@@ -124,7 +136,12 @@ class EditorViewModel: ObservableObject {
                 return
             }
             if let warning = precheck.warningMessages.first {
-                showToast(message: warning)
+                isLoading = false
+                let proceed = await awaitWarningDecision(message: warning)
+                if !proceed {
+                    return
+                }
+                isLoading = true
             }
         }
         
@@ -183,13 +200,15 @@ class EditorViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        precheckDebugInfo = nil
         didSaveToHistory = false
         isPreviewBlurred = false
         
         do {
-            if selectedMode == .presence {
+            if requiresPresencePrecheck(for: selectedMode) {
                 let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
                 if !precheck.isValid {
+                    precheckDebugInfo = precheck.debugInfo
                     errorMessage = precheck.blockingMessage ?? "Please try another photo."
                     showError = true
                     Haptics.notification(type: .error)
@@ -197,7 +216,12 @@ class EditorViewModel: ObservableObject {
                     return
                 }
                 if let warning = precheck.warningMessages.first {
-                    showToast(message: warning)
+                    isLoading = false
+                    let proceed = await awaitWarningDecision(message: warning)
+                    if !proceed {
+                        return
+                    }
+                    isLoading = true
                 }
             }
 
@@ -341,11 +365,28 @@ class EditorViewModel: ObservableObject {
         didSaveToHistory = false
         didUploadToSupabase = false
         isPreviewBlurred = false
+        warningMessage = nil
+        showWarningPrompt = false
     }
     
     private func showToast(message: String) {
         toastMessage = message
         showToast = true
+    }
+
+    func resolveWarningDecision(proceed: Bool) {
+        showWarningPrompt = false
+        let continuation = warningContinuation
+        warningContinuation = nil
+        continuation?.resume(returning: proceed)
+    }
+
+    private func awaitWarningDecision(message: String) async -> Bool {
+        warningMessage = message
+        showWarningPrompt = true
+        return await withCheckedContinuation { continuation in
+            warningContinuation = continuation
+        }
     }
     
     private func saveToHistory(_ item: HistoryItem) {

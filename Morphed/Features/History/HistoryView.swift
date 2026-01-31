@@ -483,19 +483,32 @@ struct ImageDetailView: View {
                     
                     // Image Display
                     if let image = showingOriginal ? item.originalImage : item.editedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 500)
-                            .padding(DesignSystem.Spacing.md)
-                            .padding(.top, DesignSystem.Spacing.xs)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                                .fill(Color.cardBackground)
+                                .frame(height: 420)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                                        .stroke(Color.divider.opacity(0.3), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                            
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity, maxHeight: 420)
+                                .padding(DesignSystem.Spacing.sm)
+                                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md))
+                        }
+                        .padding(.horizontal, DesignSystem.Spacing.md)
+                        .padding(.top, DesignSystem.Spacing.xs)
                     }
                     
                     // Mode bubble (below image, keep layout stable)
                     ModePill(mode: item.mode)
                         .opacity(showingOriginal ? 0 : 1)
                         .frame(height: 24)
-                        .padding(.top, -DesignSystem.Spacing.xl * 2)
+                        .padding(.top, DesignSystem.Spacing.xs)
                     
                     Spacer()
                     

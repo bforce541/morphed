@@ -12,7 +12,7 @@ enum UsageTracker {
         var presenceUses: Int = 0
         var physiqueUses: Int = 0
         var faceUses: Int = 0
-        var styleUses: Int = 0
+        var professionalityUses: Int = 0
     }
     
     static func load() -> Stats {
@@ -30,7 +30,7 @@ enum UsageTracker {
         case .presence: stats.presenceUses += 1
         case .physique: stats.physiqueUses += 1
         case .face: stats.faceUses += 1
-        case .style: stats.styleUses += 1
+        case .professionality: stats.professionalityUses += 1
         }
         persist(stats)
         AnalyticsTracker.track("morph_completed", properties: ["mode": mode.rawValue])
@@ -49,5 +49,4 @@ enum UsageTracker {
         }
     }
 }
-
 

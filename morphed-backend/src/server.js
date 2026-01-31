@@ -8,6 +8,7 @@ import { validateEditRequest } from "./validate.js";
 import { createCheckoutSession, verifyWebhookSignature } from "./stripeClient.js";
 import { verifyTransaction } from "./appleVerify.js";
 import { upsertEntitlement, getEntitlement } from "./entitlementsStore.js";
+import { checkPresenceWithOpenRouter } from "./openrouterClient.js";
 
 dotenv.config();
 
@@ -116,6 +117,88 @@ app.post("/edit", async (req, res) => {
         });
     }
 });
+
+app.post("/precheck", async (req, res) => {
+    const { requestId } = req;
+    try {
+        const { imageBase64, mimeType } = req.body || {};
+
+        if (!imageBase64 || typeof imageBase64 !== "string") {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "imageBase64 is required"
+                }
+            });
+        }
+
+        if (!mimeType || (mimeType !== "image/jpeg" && mimeType !== "image/png")) {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "mimeType must be 'image/jpeg' or 'image/png'"
+                }
+            });
+        }
+
+        if (!process.env.OPENROUTER_API_KEY) {
+            return res.status(500).json({
+                error: {
+                    code: "INTERNAL",
+                    message: "Server configuration error: OPENROUTER_API_KEY is not set"
+                }
+            });
+        }
+
+        const models = buildOpenRouterModels(
+            process.env.OPENROUTER_MODEL,
+            process.env.OPENROUTER_MODEL_FALLBACKS
+        );
+
+        const result = await checkPresenceWithOpenRouter(
+            imageBase64,
+            mimeType,
+            process.env.OPENROUTER_API_KEY,
+            models,
+            process.env.OPENROUTER_BASE_URL
+        );
+
+        return res.json({
+            pass: !!result.pass,
+            blockingMessage: result.blockingMessage ?? null,
+            warnings: Array.isArray(result.warnings) ? result.warnings : [],
+            debug: appendModelDebug(result.debug, result.modelUsed)
+        });
+    } catch (error) {
+        console.error(`[${requestId}] /precheck error:`, error.message);
+        return res.status(500).json({
+            error: {
+                code: "INTERNAL",
+                message: error.message || "Precheck failed"
+            }
+        });
+    }
+});
+
+function buildOpenRouterModels(primary, fallbacks) {
+    const list = [];
+    if (primary && primary.trim().length > 0) {
+        list.push(primary.trim());
+    }
+    if (fallbacks && fallbacks.trim().length > 0) {
+        const parts = fallbacks.split(",").map((v) => v.trim()).filter(Boolean);
+        list.push(...parts);
+    }
+    return list.length > 0 ? list : undefined;
+}
+
+function appendModelDebug(debug, modelUsed) {
+    if (!modelUsed) return debug ?? null;
+    if (!debug || debug.trim().length === 0) {
+        return `model=${modelUsed}`;
+    }
+    return `${debug} | model=${modelUsed}`;
+}
 
 // Lightweight usage tracking endpoint (stub – no persistence yet).
 app.post("/usage", (req, res) => {
@@ -353,4 +436,3 @@ app.listen(PORT, () => {
     console.log(`Morphed backend server running on http://localhost:${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 });
-

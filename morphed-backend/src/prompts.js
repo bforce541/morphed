@@ -32,6 +32,11 @@ Fixed posture alignment + slight height emphasis (optical only).
 REFERENCE:
 Use the same enhancement method and intensity for every image.
 
+INPUT REQUIREMENTS:
+- Exactly one real human subject.
+- Face is clearly visible (eyes, nose, mouth) and not cropped off.
+- No drawings, statues, mannequins, dolls, toys, animals, plants, or objects.
+
 OPERATION:
 - Subtle upright posture alignment (micro-adjust posture only).
 - Slightly improve framing to center the subject.
@@ -57,6 +62,9 @@ Apply the same magnitude and pattern of enhancement every time.
 No variation.
 
 Treat this as a calibrated transformation, not a creative edit.
+
+FAILSAFE:
+If the input does NOT meet the input requirements, return the original image unchanged.
 
 Return only the edited image as base64-encoded JPEG, no text explanations.`;
 
@@ -89,6 +97,11 @@ Fixed physique definition enhancement (lighting/contrast only).
 REFERENCE:
 Use the same enhancement method and intensity for every image.
 
+INPUT REQUIREMENTS:
+- Exactly one real human subject.
+- Face is clearly visible (eyes, nose, mouth) and not cropped off.
+- No drawings, statues, mannequins, dolls, toys, animals, plants, or objects.
+
 OPERATION:
 - Increase local contrast on chest/shoulders/upper torso to enhance definition.
 - Improve shirt fit by reducing distracting wrinkles (no reshaping).
@@ -113,6 +126,9 @@ Apply the same magnitude and pattern of enhancement every time.
 No variation.
 
 Treat this as a calibrated transformation, not a creative edit.
+
+FAILSAFE:
+If the input does NOT meet the input requirements, return the original image unchanged.
 
 Return only the edited image as base64-encoded JPEG, no text explanations.`;
 
@@ -145,6 +161,11 @@ Fixed jawline edge definition enhancement.
 REFERENCE:
 Use the same enhancement method and intensity for every image.
 
+INPUT REQUIREMENTS:
+- Exactly one real human subject.
+- Face is clearly visible (eyes, nose, mouth) and not cropped off.
+- No drawings, statues, mannequins, dolls, toys, animals, plants, or objects.
+
 OPERATION:
 Increase local contrast and edge clarity along the existing jawline contour only.
 
@@ -171,6 +192,9 @@ Apply the same magnitude and pattern of enhancement every time.
 No variation.
 
 Treat this as a calibrated transformation, not a creative edit.
+
+FAILSAFE:
+If the input does NOT meet the input requirements, return the original image unchanged.
 
 Return only the edited image as base64-encoded JPEG, no text explanations.`;
 
@@ -203,6 +227,11 @@ Fixed outfit sharpness and texture enhancement.
 REFERENCE:
 Use the same enhancement method and intensity for every image.
 
+INPUT REQUIREMENTS:
+- Exactly one real human subject.
+- Face is clearly visible (eyes, nose, mouth) and not cropped off.
+- No drawings, statues, mannequins, dolls, toys, animals, plants, or objects.
+
 OPERATION:
 - Increase local contrast/clarity on clothing fabric only.
 - Reduce minor wrinkles for cleaner drape (no reshaping).
@@ -227,11 +256,14 @@ No variation.
 
 Treat this as a calibrated transformation, not a creative edit.
 
+FAILSAFE:
+If the input does NOT meet the input requirements, return the original image unchanged.
+
 Return only the edited image as base64-encoded JPEG, no text explanations.`;
 
 /**
  * Get the prompt for a given edit mode
- * @param {string} mode - One of: presence, physique, face, style
+ * @param {string} mode - One of: presence, physique, face, professionality
  * @returns {string} The prompt text for the mode
  */
 export function getConfigForMode(mode) {
@@ -242,9 +274,9 @@ export function getConfigForMode(mode) {
             return { system: PHYSIQUE_SYSTEM, prompt: PHYSIQUE_PROMPT };
         case "face":
             return { system: FACE_SYSTEM, prompt: FACE_PROMPT };
-        case "style":
+        case "professionality":
             return { system: STYLE_SYSTEM, prompt: STYLE_PROMPT };
         default:
-            throw new Error(`Invalid mode: ${mode}. Must be one of: presence, physique, face, style`);
+            throw new Error(`Invalid mode: ${mode}. Must be one of: presence, physique, face, professionality`);
     }
 }
