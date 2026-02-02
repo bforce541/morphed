@@ -50,6 +50,7 @@ final class IAPManager: ObservableObject {
 
     @Published private(set) var products: [Product] = []
     @Published private(set) var isLoadingProducts = false
+    @Published private(set) var loadError: Error?
     @Published private(set) var purchaseState: PurchaseState = .idle
 
     enum PurchaseState {
@@ -76,12 +77,17 @@ final class IAPManager: ObservableObject {
 
     func loadProducts() async {
         isLoadingProducts = true
+        loadError = nil
         defer { isLoadingProducts = false }
         do {
             let ids = IAPProductID.subscriptionIDs
             products = try await Product.products(for: ids).sorted { $0.price < $1.price }
+            loadError = nil
             log("IAP", "Loaded \(products.count) products: \(products.map(\.id))")
+            // TODO: Validate on real device with Sandbox; product IDs must match App Store Connect.
         } catch {
+            loadError = error
+            products = []
             log("IAP", "Load products failed: \(error.localizedDescription)")
         }
     }
@@ -108,6 +114,7 @@ final class IAPManager: ObservableObject {
         purchaseState = .purchasing
         log("IAP", "Purchase started: \(productID.rawValue)")
         defer { purchaseState = .idle }
+        // TODO: Test full purchase flow on real device (Sandbox) and confirm backend verify.
 
         do {
             let result = try await product.purchase()
@@ -169,15 +176,22 @@ final class IAPManager: ObservableObject {
     /// Call after restore when you have the latest transaction to verify with backend.
     /// Returns a payload for the "best" current entitlement (e.g. for verification).
     func currentEntitlementPayload() async -> VerifiedTransactionPayload? {
+        let all = await allCurrentEntitlementPayloads()
+        return all.first
+    }
+
+    /// All current entitlement payloads (for restore: verify each on backend).
+    func allCurrentEntitlementPayloads() async -> [VerifiedTransactionPayload] {
+        var payloads: [VerifiedTransactionPayload] = []
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result {
                 let jws = result.jwsRepresentation
                 if let payload = makePayload(transaction: transaction, jwsRepresentation: jws) {
-                    return payload
+                    payloads.append(payload)
                 }
             }
         }
-        return nil
+        return payloads
     }
 
     // MARK: - Transaction updates (e.g. renewals, family sharing)
@@ -214,7 +228,11 @@ final class IAPManager: ObservableObject {
         )
     }
 
+    #if DEBUG
     private func log(_ tag: String, _ message: String) {
         print("[\(tag)] \(message)")
     }
+    #else
+    private func log(_ tag: String, _ message: String) {}
+    #endif
 }

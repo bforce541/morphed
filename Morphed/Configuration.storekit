@@ -1,0 +1,61 @@
+{
+  "identifier" : "MorphedIAP",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {},
+  "subscriptionGroups" : [
+    {
+      "id" : "A1B2C3D4",
+      "localizations" : [],
+      "name" : "Morphed",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "6.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "E5F60718",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Pro monthly subscription",
+              "displayName" : "Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "morphed_pro_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "A1B2C3D4",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "11.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "293A4B5C",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Premium monthly subscription",
+              "displayName" : "Premium Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "morphed_premium_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Premium Monthly",
+          "subscriptionGroupID" : "A1B2C3D4",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}

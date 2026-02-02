@@ -7,11 +7,14 @@ struct PostGenerationPaywallView: View {
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @StateObject private var router = AppRouter.shared
     @StateObject private var authManager = AuthManager.shared
+    @StateObject private var iapManager = IAPManager.shared
     
     @State private var selectedPlan: PricingPlanID = .proMonthly
     @State private var isProcessing = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var pendingTransactionPayload: VerifiedTransactionPayload? = nil
+    @State private var showRetrySync = false
     
     var body: some View {
         NavigationView {
@@ -22,7 +25,6 @@ struct PostGenerationPaywallView: View {
                 VStack(spacing: DesignSystem.Spacing.xl) {
                     Spacer()
                     
-                    // Header
                     VStack(spacing: DesignSystem.Spacing.md) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 64, weight: .medium))
@@ -40,39 +42,40 @@ struct PostGenerationPaywallView: View {
                     }
                     .padding(.horizontal, DesignSystem.Spacing.xl)
                     
-                    // Pricing Cards (Simplified - just Pro and Premium)
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        if let proMonthly = PricingModels.all.first(where: { $0.id == .proMonthly }) {
-                            PricingCard(
-                                plan: proMonthly,
-                                isSelected: selectedPlan == .proMonthly,
-                                isDominant: true
-                            )
-                            .onTapGesture {
-                                withAnimation(DesignSystem.Animation.standard) {
-                                    selectedPlan = .proMonthly
+                    if iapManager.isLoadingProducts && iapManager.products.isEmpty {
+                        ProgressView("Loading plans…")
+                            .progressViewStyle(CircularProgressViewStyle(tint: .primaryAccent))
+                            .padding(.vertical, DesignSystem.Spacing.lg)
+                    } else {
+                        VStack(spacing: DesignSystem.Spacing.md) {
+                            if let proMonthly = PricingModels.all.first(where: { $0.id == .proMonthly }) {
+                                PricingCard(
+                                    plan: proMonthly,
+                                    displayPriceOverride: iapManager.priceString(for: .proMonthly).map { "\($0) / month" },
+                                    isSelected: selectedPlan == .proMonthly,
+                                    isDominant: true
+                                )
+                                .onTapGesture {
+                                    withAnimation(DesignSystem.Animation.standard) { selectedPlan = .proMonthly }
+                                    Haptics.impact(style: .light)
                                 }
-                                Haptics.impact(style: .light)
+                            }
+                            if let premiumMonthly = PricingModels.all.first(where: { $0.id == .premiumMonthly }) {
+                                PricingCard(
+                                    plan: premiumMonthly,
+                                    displayPriceOverride: iapManager.priceString(for: .premiumMonthly).map { "\($0) / month" },
+                                    isSelected: selectedPlan == .premiumMonthly,
+                                    isDominant: false
+                                )
+                                .onTapGesture {
+                                    withAnimation(DesignSystem.Animation.standard) { selectedPlan = .premiumMonthly }
+                                    Haptics.impact(style: .light)
+                                }
                             }
                         }
-                        
-                        if let premiumMonthly = PricingModels.all.first(where: { $0.id == .premiumMonthly }) {
-                            PricingCard(
-                                plan: premiumMonthly,
-                                isSelected: selectedPlan == .premiumMonthly,
-                                isDominant: false
-                            )
-                            .onTapGesture {
-                                withAnimation(DesignSystem.Animation.standard) {
-                                    selectedPlan = .premiumMonthly
-                                }
-                                Haptics.impact(style: .light)
-                            }
-                        }
+                        .padding(.horizontal, DesignSystem.Spacing.md)
                     }
-                    .padding(.horizontal, DesignSystem.Spacing.md)
                     
-                    // CTA Buttons
                     VStack(spacing: DesignSystem.Spacing.sm) {
                         MorphedButton(
                             isProcessing ? "Processing..." : "Unlock Full Upgrade",
@@ -83,6 +86,14 @@ struct PostGenerationPaywallView: View {
                         }
                         .disabled(isProcessing)
                         .padding(.horizontal, DesignSystem.Spacing.md)
+                        
+                        Button(action: { handleRestorePurchases() }) {
+                            Text("Restore Purchases")
+                                .font(.system(.subheadline, design: .default, weight: .medium))
+                                .foregroundColor(.textSecondary)
+                        }
+                        .disabled(isProcessing)
+                        .padding(.top, DesignSystem.Spacing.xs)
                         
                         Button(action: {
                             Haptics.impact(style: .light)
@@ -109,8 +120,17 @@ struct PostGenerationPaywallView: View {
                     .foregroundColor(.textPrimary)
                 }
             }
-            .alert("Purchase Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
+            .alert("Purchase Status", isPresented: $showError) {
+                if showRetrySync {
+                    Button("Retry Sync") { handleRetrySync() }
+                    Button("Restore Purchases") { handleRestorePurchases() }
+                    Button("Cancel", role: .cancel) {
+                        pendingTransactionPayload = nil
+                        showRetrySync = false
+                    }
+                } else {
+                    Button("OK", role: .cancel) { }
+                }
             } message: {
                 Text(errorMessage)
             }
@@ -124,10 +144,11 @@ struct PostGenerationPaywallView: View {
 
         Task {
             guard let productID = IAPProductID.productID(for: selectedPlan) else {
+                errorMessage = "Product not available"
+                showError = true
                 isProcessing = false
                 return
             }
-            // Use Supabase UUID only (no email fallback).
             guard let userId = authManager.currentUser?.id, !userId.isEmpty else {
                 errorMessage = "Please log in again to complete purchase sync."
                 showError = true
@@ -144,22 +165,102 @@ struct PostGenerationPaywallView: View {
                         environment: payload.environment
                     )
                     subscriptionManager.applyEntitlementResponse(response)
+                    await subscriptionManager.refreshEntitlements(userId: userId)
                     AnalyticsTracker.track("purchase_\(selectedPlan == .proMonthly ? "pro" : "premium")_post_gen", properties: nil)
                     Haptics.notification(type: .success)
+                    isProcessing = false
                     dismiss()
                 } catch {
-                    errorMessage = "Purchase completed but sync failed: \(error.localizedDescription)"
+                    pendingTransactionPayload = payload
+                    errorMessage = "Purchase completed. Syncing access failed. Tap 'Retry Sync'."
+                    showRetrySync = true
                     showError = true
                     Haptics.notification(type: .error)
+                    isProcessing = false
                 }
             case .userCancelled:
-                break
+                isProcessing = false
             case .pending:
-                break
-            case .failed:
+                errorMessage = "Purchase is pending (e.g. Ask to Buy). You'll get access when it's approved."
+                showError = true
+                isProcessing = false
+            case .failed(let error):
+                errorMessage = error.localizedDescription
+                showError = true
+                Haptics.notification(type: .error)
+                isProcessing = false
+            }
+        }
+    }
+
+    private func handleRestorePurchases() {
+        guard !isProcessing else { return }
+        guard let userId = authManager.currentUser?.id, !userId.isEmpty else {
+            errorMessage = "Please log in to restore purchases."
+            showError = true
+            return
+        }
+        isProcessing = true
+        Task {
+            switch await IAPManager.shared.restorePurchases() {
+            case .success:
+                let payloads = await IAPManager.shared.allCurrentEntitlementPayloads()
+                for payload in payloads {
+                    do {
+                        let response = try await EntitlementService.verifyAppleTransaction(
+                            userId: userId,
+                            signedTransactionInfo: payload.jwsRepresentation,
+                            environment: payload.environment
+                        )
+                        subscriptionManager.applyEntitlementResponse(response)
+                    } catch { /* continue with next */ }
+                }
+                await subscriptionManager.refreshEntitlements(userId: userId)
+                AnalyticsTracker.track("restore_purchases_success", properties: nil)
+                Haptics.notification(type: .success)
+                dismiss()
+            case .noPurchasesToRestore:
+                errorMessage = "No purchases to restore."
+                showError = true
+            case .failed(let error):
+                errorMessage = error.localizedDescription
+                showError = true
                 Haptics.notification(type: .error)
             }
             isProcessing = false
+        }
+    }
+
+    private func handleRetrySync() {
+        guard let payload = pendingTransactionPayload,
+              let userId = authManager.currentUser?.id, !userId.isEmpty else {
+            errorMessage = "Please log in again to complete purchase sync."
+            showError = true
+            return
+        }
+        isProcessing = true
+        showRetrySync = false
+        Task {
+            do {
+                let response = try await EntitlementService.verifyAppleTransaction(
+                    userId: userId,
+                    signedTransactionInfo: payload.jwsRepresentation,
+                    environment: payload.environment
+                )
+                subscriptionManager.applyEntitlementResponse(response)
+                await subscriptionManager.refreshEntitlements(userId: userId)
+                pendingTransactionPayload = nil
+                AnalyticsTracker.track("purchase_retry_sync_success", properties: nil)
+                Haptics.notification(type: .success)
+                isProcessing = false
+                dismiss()
+            } catch {
+                errorMessage = "Sync failed: \(error.localizedDescription). Try 'Restore Purchases'."
+                showRetrySync = true
+                showError = true
+                Haptics.notification(type: .error)
+                isProcessing = false
+            }
         }
     }
 }

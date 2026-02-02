@@ -6,6 +6,7 @@ struct PaywallView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @StateObject private var authManager = AuthManager.shared
+    @StateObject private var iapManager = IAPManager.shared
     
     @State private var selectedPlan: PricingPlanID = .proMonthly
     @State private var isProcessing = false
@@ -22,13 +23,14 @@ struct PaywallView: View {
                 
                 ScrollView {
                     VStack(spacing: DesignSystem.Spacing.xl) {
-                        // Header
                         header
-                        
-                        // Pricing Cards (Pro first, then Premium, then Free)
-                        pricingCards
-                        
-                        // CTA Button
+                        if iapManager.isLoadingProducts && iapManager.products.isEmpty {
+                            ProgressView("Loading plans…")
+                                .progressViewStyle(CircularProgressViewStyle(tint: .primaryAccent))
+                                .padding(.vertical, DesignSystem.Spacing.xl)
+                        } else {
+                            pricingCards
+                        }
                         footerCTA
                     }
                     .padding(.vertical, DesignSystem.Spacing.lg)
@@ -83,10 +85,11 @@ struct PaywallView: View {
     
     private var pricingCards: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            // Pro - Dominant
+            // Pro - Dominant (StoreKit price when available; fallback "per month" from model)
             if let proMonthly = PricingModels.all.first(where: { $0.id == .proMonthly }) {
                 PricingCard(
                     plan: proMonthly,
+                    displayPriceOverride: iapManager.priceString(for: .proMonthly).map { "\($0) / month" },
                     isSelected: selectedPlan == .proMonthly,
                     isDominant: true
                 )
@@ -102,6 +105,7 @@ struct PaywallView: View {
             if let premiumMonthly = PricingModels.all.first(where: { $0.id == .premiumMonthly }) {
                 PricingCard(
                     plan: premiumMonthly,
+                    displayPriceOverride: iapManager.priceString(for: .premiumMonthly).map { "\($0) / month" },
                     isSelected: selectedPlan == .premiumMonthly,
                     isDominant: false
                 )
@@ -117,6 +121,7 @@ struct PaywallView: View {
             if let free = PricingModels.all.first(where: { $0.id == .free }) {
                 PricingCard(
                     plan: free,
+                    displayPriceOverride: nil,
                     isSelected: selectedPlan == .free,
                     isDominant: false
                 )
@@ -212,6 +217,7 @@ struct PaywallView: View {
                             environment: payload.environment
                         )
                         subscriptionManager.applyEntitlementResponse(response)
+                        await subscriptionManager.refreshEntitlements(userId: userId)
                         AnalyticsTracker.track("purchase_\(selectedPlan == .proMonthly ? "pro" : "premium")", properties: nil)
                         Haptics.notification(type: .success)
                         isProcessing = false
@@ -253,7 +259,8 @@ struct PaywallView: View {
         Task {
             switch await IAPManager.shared.restorePurchases() {
             case .success:
-                if let payload = await IAPManager.shared.currentEntitlementPayload() {
+                let payloads = await IAPManager.shared.allCurrentEntitlementPayloads()
+                for payload in payloads {
                     do {
                         let response = try await EntitlementService.verifyAppleTransaction(
                             userId: userId,
@@ -261,19 +268,12 @@ struct PaywallView: View {
                             environment: payload.environment
                         )
                         subscriptionManager.applyEntitlementResponse(response)
-                        AnalyticsTracker.track("restore_purchases_success", properties: nil)
-                        Haptics.notification(type: .success)
-                        dismiss()
-                    } catch {
-                        errorMessage = "Restore succeeded but verification failed. Please try again."
-                        showError = true
-                    }
-                } else {
-                    // No current entitlement payload, refresh from backend
-                    await subscriptionManager.refreshEntitlements(userId: userId)
-                    Haptics.notification(type: .success)
-                    dismiss()
+                    } catch { /* continue with next */ }
                 }
+                await subscriptionManager.refreshEntitlements(userId: userId)
+                AnalyticsTracker.track("restore_purchases_success", properties: nil)
+                Haptics.notification(type: .success)
+                dismiss()
             case .noPurchasesToRestore:
                 errorMessage = "No purchases to restore."
                 showError = true
@@ -303,6 +303,7 @@ struct PaywallView: View {
                     environment: payload.environment
                 )
                 subscriptionManager.applyEntitlementResponse(response)
+                await subscriptionManager.refreshEntitlements(userId: userId)
                 pendingTransactionPayload = nil
                 AnalyticsTracker.track("purchase_retry_sync_success", properties: nil)
                 Haptics.notification(type: .success)
@@ -321,12 +322,17 @@ struct PaywallView: View {
 
 struct PricingCard: View {
     let plan: PricingPlan
+    /// When set (e.g. from StoreKit displayPrice), shown instead of plan.priceText. Use "X / month" for subscriptions.
+    var displayPriceOverride: String? = nil
     let isSelected: Bool
     let isDominant: Bool
     
+    private var displayedPrice: String {
+        displayPriceOverride ?? plan.priceText
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            // Header with badge
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     HStack(spacing: DesignSystem.Spacing.xs) {
@@ -352,7 +358,7 @@ struct PricingCard: View {
                 
                 Spacer()
                 
-                Text(plan.priceText)
+                Text(displayedPrice)
                     .font(.system(.headline, design: .default, weight: .bold))
                     .foregroundColor(.primaryAccent)
             }

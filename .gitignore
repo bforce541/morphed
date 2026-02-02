@@ -1,12 +1,26 @@
+# Secrets and env (never commit)
 Morphed/Config/Secrets.xcconfig
+**/.env
+.env
+.env.*
+!.env.example
+
+# Xcode / IDE
 **/UserInterfaceState.xcuserstate
 **/xcuserdata/
-supabase/.temp/
 Morphed.xcodeproj/project.xcworkspace/xcshareddata/
+*.xcuserstate
+.DS_Store
 
-# Dependencies
+# Build / dependencies
 **/node_modules/
+**/DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
 
-# Backend environment files
-morphed-backend/.env
-.package-lock.json
+# Supabase
+supabase/.temp/
+
+# Lockfiles (optional; uncomment if you want to track)
+# .package-lock.json

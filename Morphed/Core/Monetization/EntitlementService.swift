@@ -45,6 +45,9 @@ enum EntitlementService {
             throw EntitlementServiceError.networkError("Failed to fetch entitlements")
         }
         let decoded = try JSONDecoder().decode(EntitlementResponse.self, from: data)
+        #if DEBUG
+        print("[EntitlementService] GET /entitlements success tier=\(decoded.tier)")
+        #endif
         return decoded
     }
 
@@ -69,12 +72,18 @@ enum EntitlementService {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw EntitlementServiceError.invalidResponse }
         if !(200...299).contains(http.statusCode) {
+            #if DEBUG
+            print("[EntitlementService] POST /iap/apple/verify failed HTTP \(http.statusCode)")
+            #endif
             if let err = try? JSONDecoder().decode(ServerError.self, from: data) {
                 throw EntitlementServiceError.networkError(err.error?.message ?? "Verification failed")
             }
             throw EntitlementServiceError.networkError("Verification failed (HTTP \(http.statusCode))")
         }
         let decoded = try JSONDecoder().decode(EntitlementResponse.self, from: data)
+        #if DEBUG
+        print("[EntitlementService] POST /iap/apple/verify success tier=\(decoded.tier)")
+        #endif
         return decoded
     }
 }

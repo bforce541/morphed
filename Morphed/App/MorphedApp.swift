@@ -65,7 +65,14 @@ struct RootView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            // Refresh entitlements when app becomes active (recovery for failed syncs)
+            if authManager.isAuthenticated, let userId = authManager.currentUser?.id, !userId.isEmpty {
+                Task {
+                    await subscriptionManager.refreshEntitlements(userId: userId)
+                }
+            }
+        }
+        .onAppear {
+            // Refresh entitlements on launch when already authenticated (backend is source of truth)
             if authManager.isAuthenticated, let userId = authManager.currentUser?.id, !userId.isEmpty {
                 Task {
                     await subscriptionManager.refreshEntitlements(userId: userId)

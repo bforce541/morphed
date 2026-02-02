@@ -1,0 +1,11 @@
+StoreKit Configuration (Simulator)
+=================================
+So the Simulator loads products and you can test the paywall:
+
+1. In Xcode: Product → Scheme → Edit Scheme… (or ⌘<)
+2. Select "Run" in the left sidebar
+3. Open the "Options" tab
+4. Under "StoreKit Configuration", choose "Configuration.storekit"
+5. Close the scheme window and run the app again
+
+Products (morphed_pro_monthly, morphed_premium_monthly) will then load in Simulator and the upgrade buttons will work for local testing.
