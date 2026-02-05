@@ -68,24 +68,71 @@ struct EditorView: View {
                         .padding(.horizontal, DesignSystem.Spacing.md)
                         .padding(.top, DesignSystem.Spacing.sm)
                         
-                        // Original Image Card
-                        ImageCard(
-                            title: "Original",
-                            image: viewModel.originalImage,
-                            isLoading: false,
-                            onSelect: {
-                                Haptics.impact(style: .medium)
-                                viewModel.showImagePicker = true
-                            },
-                            onRemove: viewModel.isLoading ? nil : {
-                                Haptics.impact(style: .light)
-                                viewModel.clearSelectedImage()
+                        // Original or Morphed Image Card
+                        if viewModel.hasGeneratedPreview, let editedImage = viewModel.editedImage {
+                            ImageCard(
+                                title: "Morphed",
+                                image: editedImage,
+                                isLoading: false,
+                                onSelect: nil,
+                                onRemove: viewModel.isLoading ? nil : {
+                                    Haptics.impact(style: .light)
+                                    viewModel.clearSelectedImage()
+                                }
+                            )
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+
+                            // Save / Export Buttons
+                            VStack(spacing: DesignSystem.Spacing.sm) {
+                                MorphedButton(
+                                    "Save Image",
+                                    icon: "square.and.arrow.down",
+                                    style: .primary
+                                ) {
+                                    Haptics.impact(style: .medium)
+                                    Task {
+                                        await viewModel.saveToPhotos()
+                                    }
+                                }
+
+                                if isFree {
+                                    MorphedButton(
+                                        "Download HD (No Watermark)",
+                                        icon: "arrow.down.circle.fill",
+                                        style: .secondary
+                                    ) {
+                                        if FeatureGates.canExportHD(subscriptionManager) {
+                                            UsageTracker.recordHDExport()
+                                            Task {
+                                                await viewModel.saveToPhotos()
+                                            }
+                                        } else {
+                                            Haptics.notification(type: .warning)
+                                            router.showPremium()
+                                        }
+                                    }
+                                }
                             }
-                        )
-                        .padding(.horizontal, DesignSystem.Spacing.md)
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                        } else {
+                            ImageCard(
+                                title: "Original",
+                                image: viewModel.originalImage,
+                                isLoading: false,
+                                onSelect: {
+                                    Haptics.impact(style: .medium)
+                                    viewModel.showImagePicker = true
+                                },
+                                onRemove: viewModel.isLoading ? nil : {
+                                    Haptics.impact(style: .light)
+                                    viewModel.clearSelectedImage()
+                                }
+                            )
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                        }
                         
                         // Mode Selector
-                        if viewModel.originalImage != nil {
+                        if viewModel.originalImage != nil && !viewModel.hasGeneratedPreview {
                             ModeSelector(
                                 selectedMode: $viewModel.selectedMode,
                                 onRequireUpgrade: {
@@ -98,7 +145,7 @@ struct EditorView: View {
                         }
                         
                         // Generate Button
-                        if viewModel.originalImage != nil {
+                        if viewModel.originalImage != nil && !viewModel.hasGeneratedPreview {
                             HStack(spacing: DesignSystem.Spacing.sm) {
                                 MorphedButton(
                                     viewModel.isLoading ? "Enhancing..." : "Generate Upgrade",
@@ -136,7 +183,7 @@ struct EditorView: View {
                         }
                         
                         // Morphed Image Card
-                        if viewModel.editedImage != nil {
+                        if viewModel.editedImage != nil && !viewModel.hasGeneratedPreview {
                             ImageCard(
                                 title: "Morphed",
                                 image: viewModel.editedImage,
@@ -181,6 +228,9 @@ struct EditorView: View {
                         }
                     }
                     .padding(.vertical, DesignSystem.Spacing.lg)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 88)
                 }
                 
                 // Loading Overlay
@@ -253,8 +303,8 @@ struct EditorView: View {
                 )
             }
             .fullScreenCover(isPresented: Binding(
-                get: { viewModel.hasGeneratedPreview && viewModel.editedImage != nil },
-                set: { if !$0 { viewModel.hasGeneratedPreview = false } }
+                get: { viewModel.showPreviewModal && viewModel.editedImage != nil },
+                set: { viewModel.showPreviewModal = $0 }
             )) {
                 if let previewImage = viewModel.editedImage,
                    let mode = viewModel.selectedMode {
@@ -380,9 +430,10 @@ struct ImageCard: View {
                 .foregroundColor(.textPrimary)
             
             ZStack(alignment: .topTrailing) {
+                let cardHeight: CGFloat = 420
                 RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
                     .fill(Color.cardBackground)
-                    .frame(height: 420)
+                    .frame(height: cardHeight)
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
                             .stroke(Color.divider.opacity(0.3), lineWidth: 1)
@@ -393,7 +444,7 @@ struct ImageCard: View {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: 420)
+                        .frame(maxWidth: .infinity, maxHeight: cardHeight - (DesignSystem.Spacing.sm * 2))
                         .padding(DesignSystem.Spacing.sm)
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md))
                     

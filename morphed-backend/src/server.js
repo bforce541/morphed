@@ -121,7 +121,17 @@ app.post("/edit", async (req, res) => {
 app.post("/precheck", async (req, res) => {
     const { requestId } = req;
     try {
-        const { imageBase64, mimeType } = req.body || {};
+        const { imageBase64, mimeType, mode } = req.body || {};
+        const normalizedMode = typeof mode === "string" ? mode.trim().toLowerCase() : "presence";
+        const allowedModes = new Set(["presence", "face", "physique", "professionality"]);
+        if (normalizedMode && !allowedModes.has(normalizedMode)) {
+            return res.status(400).json({
+                error: {
+                    code: "BAD_REQUEST",
+                    message: "mode must be one of: presence, face, physique, professionality"
+                }
+            });
+        }
 
         if (!imageBase64 || typeof imageBase64 !== "string") {
             return res.status(400).json({
@@ -160,7 +170,8 @@ app.post("/precheck", async (req, res) => {
             mimeType,
             process.env.OPENROUTER_API_KEY,
             models,
-            process.env.OPENROUTER_BASE_URL
+            process.env.OPENROUTER_BASE_URL,
+            normalizedMode || "presence"
         );
 
         return res.json({
@@ -244,6 +255,26 @@ app.get("/entitlements", async (req, res) => {
             isPro: false
         });
     }
+
+    // Dev override: force Pro access without touching payments/entitlements.
+    const forceAllPro = process.env.PRO_BYPASS_ALL === "true";
+    const bypassList = (process.env.PRO_BYPASS_USER_IDS || "")
+        .split(",")
+        .map((id) => id.trim().toLowerCase())
+        .filter(Boolean);
+    const normalizedUserId = userId.toLowerCase();
+    if (forceAllPro || bypassList.includes(normalizedUserId)) {
+        console.log(`[${requestId}] /entitlements user_id=${userId} forced Pro via env override`);
+        return res.json({
+            tier: "proMonthly",
+            canUseMaxMode: true,
+            canExportHD: true,
+            remainingPremiumRenders: 999999,
+            isPro: true,
+            expiresAt: null
+        });
+    }
+
     const ent = await getEntitlement(userId);
     const isPro = ent.isPro && (!ent.expires_at || ent.expires_at > Math.floor(Date.now() / 1000));
     console.log(`[${requestId}] /entitlements user_id=${userId} tier=${ent.plan} isPro=${isPro}`);

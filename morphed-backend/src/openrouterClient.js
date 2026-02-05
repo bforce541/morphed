@@ -4,7 +4,7 @@ import { OpenRouter } from "@openrouter/sdk";
 
 const DEFAULT_MODEL = "qwen/qwen-2.5-vl-7b-instruct:free";
 
-const PROMPT = `
+const PRESENCE_PROMPT = `
 You are a strict validator for a profile-photo pipeline. Decide PASS or FAIL.
 Be conservative: if anything is unclear, return FAIL.
 
@@ -33,13 +33,80 @@ Warnings should be short suggestions like:
 "Strong angle — a straighter, front-facing photo may improve results."
 `.trim();
 
-export async function checkPresenceWithOpenRouter(imageBase64, mimeType, apiKey, models, baseUrl) {
+const FACE_PROMPT = `
+You are a validator for a face-focused editing pipeline. Decide PASS or FAIL.
+Be conservative ONLY about face visibility and quality. Ignore shoulders and body framing.
+
+PASS only if ALL are true:
+1) Exactly one real human is present (not a drawing, statue, mannequin, doll, toy, animal, plant, object, or AI art).
+2) A face is clearly visible with eyes, nose, and mouth mostly visible (minor occlusions OK).
+3) The face is usable: not extremely blurry, not too dark/overexposed to see facial features.
+4) Pose is usable: no extreme yaw or roll that hides major facial features.
+
+DO NOT require shoulders or full upper body. Tight face crops are OK.
+Face may be close to edges if features are still visible.
+
+FAIL if any of the above is false, or if there are multiple people, partial faces, or non-human subjects.
+
+Return ONLY JSON with keys:
+pass (boolean),
+blockingMessage (string or null),
+warnings (array of strings),
+debug (string).
+If FAIL, set blockingMessage to exactly:
+"Please upload a clear photo of a single person with a visible face."
+If PASS, include warnings ONLY for severe-but-usable issues (very blurry, very low light, or face extremely small but still visible).
+Do NOT warn about angle or mild/moderate issues. If unsure, PASS with no warnings.
+Warnings should be short suggestions like:
+"Blurry — a sharper photo may improve results."
+"Low light — a brighter photo may improve results."
+"Face is small in frame — a closer photo may improve results."
+`.trim();
+
+const PHYSIQUE_PROMPT = `
+You are a validator for a physique-focused editing pipeline. Decide PASS or FAIL.
+Be conservative ONLY about subject presence, visibility of the target body region, and severe image issues.
+Do NOT require a face. Shirtless, shorts, and legs-only shots are acceptable.
+
+PASS only if ALL are true:
+1) Exactly one real human is present (not a drawing, statue, mannequin, doll, toy, animal, plant, object, or AI art).
+2) The intended body region is clearly visible (torso or legs). Partial body is OK if the target region is visible.
+3) The image is usable: not extremely blurry, and not so dark/overexposed that the body region is unreadable.
+
+DO NOT require full body or shoulders. Mirror selfies are OK. Tight crops are OK if the target region is clear.
+
+FAIL if any of the above is false, or if there are multiple people, non-human subjects, or the target region is fully missing/obscured.
+
+Return ONLY JSON with keys:
+pass (boolean),
+blockingMessage (string or null),
+warnings (array of strings),
+debug (string).
+If FAIL, set blockingMessage to exactly:
+"Please upload a clear photo of a single person with a visible body."
+If PASS, include warnings ONLY for severe-but-usable issues (very blurry, very low light, strong backlight, or target region partially occluded).
+Do NOT warn for mild/moderate issues. If unsure, PASS with no warnings.
+Warnings should be short suggestions like:
+"Blurry — a sharper photo may improve results."
+"Low light — a brighter photo may improve results."
+"Strong backlight — softer lighting may improve results."
+"Target area partially occluded — clearer framing may improve results."
+`.trim();
+
+function buildPrompt(mode) {
+    if (mode === "face") return FACE_PROMPT;
+    if (mode === "physique") return PHYSIQUE_PROMPT;
+    return PRESENCE_PROMPT;
+}
+
+export async function checkPresenceWithOpenRouter(imageBase64, mimeType, apiKey, models, baseUrl, mode) {
     if (!apiKey) {
         throw new Error("OPENROUTER_API_KEY is not set");
     }
 
     const dataUrl = `data:${mimeType};base64,${imageBase64}`;
     const openRouter = createClient(apiKey, baseUrl);
+    const prompt = buildPrompt(mode);
 
     const modelList = normalizeModels(models);
     let lastError = null;
@@ -53,7 +120,7 @@ export async function checkPresenceWithOpenRouter(imageBase64, mimeType, apiKey,
                     {
                         role: "user",
                         content: [
-                            { type: "text", text: PROMPT },
+                            { type: "text", text: prompt },
                             { type: "image_url", imageUrl: { url: dataUrl } }
                         ]
                     }
@@ -72,7 +139,7 @@ export async function checkPresenceWithOpenRouter(imageBase64, mimeType, apiKey,
                 throw new Error("OpenRouter returned invalid JSON");
             }
 
-            return normalizePrecheck(parsed, modelId);
+            return normalizePrecheck(parsed, modelId, mode);
         } catch (error) {
             if (shouldRetryWithNextModel(error)) {
                 lastError = error;
@@ -199,13 +266,15 @@ function extractTextContent(content) {
     return null;
 }
 
-function normalizePrecheck(parsed, modelUsed) {
+function normalizePrecheck(parsed, modelUsed, mode) {
     const pass = !!parsed?.pass;
-    const warnings = normalizeWarnings(parsed?.warnings);
+    const warnings = normalizeWarnings(parsed?.warnings, mode);
     const debug = typeof parsed?.debug === "string" ? parsed.debug : "";
-    const blockingMessage = pass
-        ? null
-        : "Please upload a clear photo of a single person with a visible face.";
+    let defaultBlockingMessage = "Please upload a clear photo of a single person with a visible face.";
+    if (mode === "physique") {
+        defaultBlockingMessage = "Please upload a clear photo of a single person with a visible body.";
+    }
+    const blockingMessage = pass ? null : defaultBlockingMessage;
     return {
         pass,
         blockingMessage,
@@ -215,19 +284,43 @@ function normalizePrecheck(parsed, modelUsed) {
     };
 }
 
-function normalizeWarnings(rawWarnings) {
+function normalizeWarnings(rawWarnings, mode) {
     if (!Array.isArray(rawWarnings)) return [];
     const normalized = [];
     for (const warning of rawWarnings) {
         const text = String(warning || "").trim();
         if (!text) continue;
         const lower = text.toLowerCase();
+        if (mode === "physique" && (lower.includes("face") || lower.includes("facial"))) {
+            continue;
+        }
+        if (mode === "face" && (lower.includes("angle") || lower.includes("tilt") || lower.includes("yaw") || lower.includes("roll"))) {
+            continue;
+        }
+        if (mode === "face" && lower.includes("blur")) {
+            const isSevere = ["very", "extreme", "severe", "heavily", "significantly"].some((word) => lower.includes(word));
+            if (!isSevere) {
+                continue;
+            }
+        }
+        if (lower.includes("backlight") || lower.includes("backlit") || lower.includes("silhouette")) {
+            normalized.push("Strong backlight — softer lighting may improve results.");
+            continue;
+        }
+        if (lower.includes("occluded") || lower.includes("obscured") || lower.includes("blocked")) {
+            normalized.push("Target area partially occluded — clearer framing may improve results.");
+            continue;
+        }
         if (lower.includes("blur")) {
             normalized.push("Blurry — a sharper photo may improve results.");
             continue;
         }
         if (lower.includes("low light") || lower.includes("dark") || lower.includes("dim")) {
             normalized.push("Low light — a brighter photo may improve results.");
+            continue;
+        }
+        if (lower.includes("overexposed") || lower.includes("too bright") || lower.includes("blown highlights")) {
+            normalized.push("Overexposed — softer lighting may improve results.");
             continue;
         }
         if (lower.includes("small face") || (lower.includes("face") && lower.includes("small"))) {

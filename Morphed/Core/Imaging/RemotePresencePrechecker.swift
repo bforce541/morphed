@@ -11,7 +11,7 @@ enum RemotePresencePrechecker {
         let debug: String?
     }
 
-    static func check(image: UIImage) async -> PresencePrecheckResult {
+    static func check(image: UIImage, mode: String) async -> PresencePrecheckResult {
         let baseURL = UserDefaults.standard.string(forKey: "morphed_base_url") ?? "http://localhost:3000"
         guard let url = URL(string: "\(baseURL)/precheck") else {
             return PresencePrecheckResult(
@@ -33,7 +33,8 @@ enum RemotePresencePrechecker {
 
         let payload = [
             "imageBase64": base64,
-            "mimeType": "image/jpeg"
+            "mimeType": "image/jpeg",
+            "mode": mode
         ]
 
         guard let body = try? JSONSerialization.data(withJSONObject: payload, options: []) else {

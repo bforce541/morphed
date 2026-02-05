@@ -52,6 +52,23 @@ function normalizePlan(plan) {
     }
 }
 
+async function updateProfileSubscription(supabase, userId, plan, expires_at) {
+    const updates = {
+        subscription_status: plan,
+        subscription_expires_at: expires_at,
+        updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", userId);
+
+    if (error) {
+        console.error("Error updating profile subscription status:", error);
+    }
+}
+
 /**
  * Upsert entitlement after Apple verification.
  * @param {string} userId
@@ -85,6 +102,8 @@ export async function upsertEntitlement(userId, verified) {
         console.error("Error upserting entitlement:", error);
         throw new Error(`Failed to persist entitlement: ${error.message}`);
     }
+
+    await updateProfileSubscription(supabase, userId, plan, row.expires_at);
 
     // Return in the format expected by callers (isPro instead of is_pro, expires_at as Unix seconds)
     return {
@@ -150,6 +169,7 @@ export async function getEntitlement(userId) {
                 updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+        await updateProfileSubscription(supabase, userId, "free", null);
     }
 
     return {

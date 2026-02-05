@@ -15,6 +15,13 @@ enum PresencePreprocessor {
         case candid
     }
 
+    enum PrecheckMode: String {
+        case presence
+        case physique
+        case face
+        case professionality
+    }
+
     struct Thresholds {
         let minFaceAreaFraction: CGFloat
         let maxFaceAreaFraction: CGFloat
@@ -79,9 +86,13 @@ enum PresencePreprocessor {
     }
 
     /// Main entry point
-    static func validate(image: UIImage, profile: Profile = .candid) async -> PresencePrecheckResult {
+    static func validate(
+        image: UIImage,
+        mode: PrecheckMode = .presence,
+        profile: Profile = .candid
+    ) async -> PresencePrecheckResult {
         await Task.detached(priority: .userInitiated) {
-            await RemotePresencePrechecker.check(image: image)
+            await RemotePresencePrechecker.check(image: image, mode: mode.rawValue)
         }.value
     }
 }

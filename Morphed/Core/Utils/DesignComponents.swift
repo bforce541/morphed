@@ -28,6 +28,7 @@ struct MorphedButton: View {
     let icon: String?
     let style: ButtonStyle
     let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
     
     enum ButtonStyle {
         case primary
@@ -65,18 +66,20 @@ struct MorphedButton: View {
             .frame(height: 56)
             .background(backgroundColor)
             .cornerRadius(DesignSystem.CornerRadius.md)
+            .opacity(isEnabled ? 1 : 0.9)
         }
         .buttonStyle(PlainButtonStyle())
+        .opacity(1)
     }
     
     private var foregroundColor: Color {
         switch style {
         case .primary:
-            return .midnightNavy
+            return isEnabled ? .midnightNavy : .midnightNavy.opacity(0.9)
         case .secondary:
-            return .textPrimary
+            return isEnabled ? .textPrimary : .textPrimary.opacity(0.85)
         case .destructive:
-            return .textPrimary
+            return isEnabled ? .textPrimary : .textPrimary.opacity(0.85)
         }
     }
     
@@ -85,6 +88,7 @@ struct MorphedButton: View {
             switch style {
             case .primary:
                 Color.primaryAccent
+                    .opacity(isEnabled ? 1 : 0.75)
             case .secondary:
                 Color.cardBackground
                     .overlay(

@@ -18,6 +18,7 @@ class EditorViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var showToast = false
     @Published var hasGeneratedPreview = false
+    @Published var showPreviewModal = false
     @Published var didSaveToHistory = false
     @Published var didUploadToSupabase = false
     @Published var isPreviewBlurred = false
@@ -109,7 +110,20 @@ class EditorViewModel: ObservableObject {
     }
 
     private func requiresPresencePrecheck(for mode: EditMode) -> Bool {
-        mode == .presence || mode == .face || mode == .professionality
+        mode == .presence || mode == .physique || mode == .face || mode == .professionality
+    }
+
+    private func precheckMode(for mode: EditMode) -> PresencePreprocessor.PrecheckMode {
+        switch mode {
+        case .face:
+            return .face
+        case .physique:
+            return .physique
+        case .professionality:
+            return .professionality
+        case .presence:
+            return .presence
+        }
     }
     
     // MARK: - Stubbed Generation
@@ -126,7 +140,11 @@ class EditorViewModel: ObservableObject {
         isPreviewBlurred = false
 
         if requiresPresencePrecheck(for: selectedMode) {
-            let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
+            let precheck = await PresencePreprocessor.validate(
+                image: originalImage,
+                mode: precheckMode(for: selectedMode),
+                profile: .candid
+            )
             if !precheck.isValid {
                 precheckDebugInfo = precheck.debugInfo
                 errorMessage = precheck.blockingMessage ?? "Please try another photo."
@@ -164,6 +182,7 @@ class EditorViewModel: ObservableObject {
         
         editedImage = previewImage
         hasGeneratedPreview = true
+        showPreviewModal = true
         
         // Save to history immediately (even for stub)
         let historyItem = HistoryItem(
@@ -206,7 +225,11 @@ class EditorViewModel: ObservableObject {
         
         do {
             if requiresPresencePrecheck(for: selectedMode) {
-                let precheck = await PresencePreprocessor.validate(image: originalImage, profile: .candid)
+                let precheck = await PresencePreprocessor.validate(
+                    image: originalImage,
+                    mode: precheckMode(for: selectedMode),
+                    profile: .candid
+                )
                 if !precheck.isValid {
                     precheckDebugInfo = precheck.debugInfo
                     errorMessage = precheck.blockingMessage ?? "Please try another photo."
@@ -254,6 +277,7 @@ class EditorViewModel: ObservableObject {
             
             editedImage = finalImage
             hasGeneratedPreview = true
+            showPreviewModal = true
             isPreviewBlurred = false
             
             // Save to history
@@ -365,6 +389,16 @@ class EditorViewModel: ObservableObject {
         didSaveToHistory = false
         didUploadToSupabase = false
         isPreviewBlurred = false
+        showPreviewModal = false
+        warningMessage = nil
+        showWarningPrompt = false
+    }
+
+    func clearPreview() {
+        editedImage = nil
+        hasGeneratedPreview = false
+        isPreviewBlurred = false
+        showPreviewModal = false
         warningMessage = nil
         showWarningPrompt = false
     }
